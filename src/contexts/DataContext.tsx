@@ -31,9 +31,22 @@ export type TimeSession = {
   isCompleted: boolean;
 };
 
+export type Debt = {
+  id: string;
+  description: string;
+  amount: number;
+  type: 'único' | 'fixo';
+  dueDate: string;
+  duration?: number;
+  paid: boolean;
+  userId: string;
+  userName: string;
+};
+
 type DataContextType = {
   investments: Investment[];
   timeSessions: TimeSession[];
+  debts: Debt[];
   addInvestment: (description: string, amount: number, isTimeInvestment?: boolean) => void;
   updateInvestment: (id: string, data: Partial<Investment>) => void;
   deleteInvestment: (id: string) => void;
@@ -44,6 +57,11 @@ type DataContextType = {
   startTimeSession: (hourlyRate: number) => string;
   stopTimeSession: (sessionId: string, isPaid: boolean) => void;
   getCurrentTimeSession: () => TimeSession | null;
+
+  // Débitos
+  addDebt: (debt: Omit<Debt, 'id'>) => void;
+  markDebtAsPaid: (id: string) => void;
+  markDebtAsUnpaid: (id: string) => void;
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -53,6 +71,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
 
   useEffect(() => {
     const unsubscribeInvestments = onSnapshot(collection(db, 'investments'), snapshot => {
@@ -65,9 +84,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setTimeSessions(data);
     });
 
+    const unsubscribeDebts = onSnapshot(collection(db, 'debts'), snapshot => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Debt));
+      setDebts(data);
+    });
+
     return () => {
       unsubscribeInvestments();
       unsubscribeSessions();
+      unsubscribeDebts();
     };
   }, []);
 
@@ -170,11 +195,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null;
   };
 
+  const addDebt = async (debt: Omit<Debt, 'id'>) => {
+    await addDoc(collection(db, 'debts'), debt);
+  };
+
+  const markDebtAsPaid = async (id: string) => {
+    await updateDoc(doc(db, 'debts', id), { paid: true });
+  };
+
+  const markDebtAsUnpaid = async (id: string) => {
+    await updateDoc(doc(db, 'debts', id), { paid: false });
+  };
+
   return (
     <DataContext.Provider
       value={{
         investments,
         timeSessions,
+        debts,
         addInvestment,
         updateInvestment,
         deleteInvestment,
@@ -184,7 +222,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         startTimeSession,
         stopTimeSession,
         getCurrentTimeSession,
-        getAllUsersInvestmentData
+        getAllUsersInvestmentData,
+        addDebt,
+        markDebtAsPaid,
+        markDebtAsUnpaid
       }}
     >
       {children}

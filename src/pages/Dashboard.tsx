@@ -39,6 +39,14 @@ const Dashboard: React.FC = () => {
       color: 'bg-teal-500'
     },
     {
+      title: 'Registrar Dívida',
+      description: 'Cadastrar novos gastos ou contas mensais',
+      path: '/register-debt',
+      icon: <span className="text-2xl">💸</span>,
+      color: 'bg-yellow-500'
+    },
+  
+    {
       title: 'Visualizar Dados',
       description: 'Gráficos e estatísticas',
       path: '/data',

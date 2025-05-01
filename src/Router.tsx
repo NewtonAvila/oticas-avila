@@ -9,6 +9,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register"; // ✅ Importar a nova tela
 import AdminPanel from "./pages/AdminPanel";
 import AdminUserManager from "./pages/AdminUserManager";
+import RegisterDebt from './pages/RegisterDebt';
+
 
 const AppRoutes: React.FC = () => {
   const { user } = useAuth();
@@ -22,6 +24,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/investments" element={<InvestmentForm />} />
             <Route path="/time-tracker" element={<TimeTracker />} />
             <Route path="/data" element={<DataVisualization />} />
+            <Route path="/register-debt" element={<RegisterDebt />} />
+
             {user.isAdmin && (
               <>
                 <Route path="/admin" element={<AdminPanel />} />
