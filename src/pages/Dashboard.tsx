@@ -45,7 +45,6 @@ const Dashboard: React.FC = () => {
       icon: <span className="text-2xl">💸</span>,
       color: 'bg-yellow-500'
     },
-  
     {
       title: 'Visualizar Dados',
       description: 'Gráficos e estatísticas',
@@ -58,9 +57,10 @@ const Dashboard: React.FC = () => {
   const menuItems = user?.isAdmin ? adminCard : regularCards;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Header title="Painel Principal" />
       <main className="container mx-auto p-6 space-y-8">
+        {/* Boas-vindas */}
         <div className="bg-indigo-600 text-white rounded-lg p-4 shadow">
           <h2 className="text-xl font-bold">
             Olá, {user?.isAdmin ? 'Administrador' : `${user?.firstName}`}!
@@ -72,23 +72,24 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
+        {/* Dados do usuário */}
         {!user?.isAdmin && (
           <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-500">TOTAL INVESTIDO</h3>
-              <p className="text-3xl font-bold text-gray-800">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
+              <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
+              <p className="text-3xl font-bold text-gray-800 dark:text-white">
                 R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-gray-500 text-sm">
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
                 Sua contribuição: R$ {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="bg-white p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-500">SUA PORCENTAGEM</h3>
-              <p className="text-3xl font-bold text-gray-800">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
+              <h3 className="text-sm text-gray-600 dark:text-gray-400">SUA PORCENTAGEM</h3>
+              <p className="text-3xl font-bold text-gray-800 dark:text-white">
                 {percentage.toFixed(1)}%
               </p>
-              <p className="text-gray-500 text-sm">Do total investido</p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">Do total investido</p>
             </div>
           </div>
         )}
@@ -99,13 +100,17 @@ const Dashboard: React.FC = () => {
             <button
               key={index}
               onClick={() => navigate(item.path)}
-              className="card h-48 flex flex-col items-center justify-center text-center hover:shadow-lg cursor-pointer transform transition-all duration-300 hover:-translate-y-1 bg-white rounded"
+              className="card h-48 flex flex-col items-center justify-center text-center hover:shadow-lg cursor-pointer transform transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-gray-800 rounded"
             >
               <div className={`${item.color} text-white p-3 rounded-lg mb-4`}>
                 {item.icon}
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-1">{item.title}</h3>
-              <p className="text-gray-500 text-sm">{item.description}</p>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">
+                {item.title}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {item.description}
+              </p>
             </button>
           ))}
         </section>
