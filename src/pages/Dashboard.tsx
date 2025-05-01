@@ -6,11 +6,12 @@ import Header from '../components/Header';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { getTotalInvestment, getUserInvestmentPercentage } = useData();
+  const { getTotalInvestment, getUserInvestmentPercentage, getUserContributionAmount } = useData();
   const { user } = useAuth();
 
   const total = getTotalInvestment();
   const percentage = getUserInvestmentPercentage();
+  const userContribution = getUserContributionAmount();
 
   const adminCard = [
     {
@@ -71,7 +72,7 @@ const Dashboard: React.FC = () => {
                 R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-gray-500 text-sm">
-                Sua contribuição: R$ {(total * (percentage / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Sua contribuição: R$ {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
             <div className="bg-white p-4 rounded shadow text-center">

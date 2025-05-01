@@ -5,9 +5,6 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  getDocs,
-  query,
-  where,
   onSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -42,10 +39,11 @@ type DataContextType = {
   deleteInvestment: (id: string) => void;
   getTotalInvestment: () => number;
   getUserInvestmentPercentage: () => number;
+  getUserContributionAmount: () => number;
+  getAllUsersInvestmentData: () => Array<{ name: string; amount: number; percentage: number }>;
   startTimeSession: (hourlyRate: number) => string;
   stopTimeSession: (sessionId: string, isPaid: boolean) => void;
   getCurrentTimeSession: () => TimeSession | null;
-  getAllUsersInvestmentData: () => Array<{ name: string; amount: number; percentage: number }>;
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -57,31 +55,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-  
-    const investmentsRef = collection(db, 'investments');
-    const timeSessionsRef = collection(db, 'timeSessions');
-  
-    const unsubscribeInvestments = onSnapshot(investmentsRef, snapshot => {
-      const data = snapshot.docs
-        .map(doc => ({ ...doc.data(), id: doc.id } as Investment))
-        .filter(inv => user.isAdmin || inv.userId === user.id);
+    const unsubscribeInvestments = onSnapshot(collection(db, 'investments'), snapshot => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Investment));
       setInvestments(data);
     });
-  
-    const unsubscribeSessions = onSnapshot(timeSessionsRef, snapshot => {
-      const data = snapshot.docs
-        .map(doc => ({ ...doc.data(), id: doc.id } as TimeSession))
-        .filter(session => user.isAdmin || session.userId === user.id);
+
+    const unsubscribeSessions = onSnapshot(collection(db, 'timeSessions'), snapshot => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as TimeSession));
       setTimeSessions(data);
     });
-  
+
     return () => {
       unsubscribeInvestments();
       unsubscribeSessions();
     };
-  }, [user]);
-  
+  }, []);
 
   const addInvestment = async (description: string, amount: number, isTimeInvestment: boolean = false) => {
     if (!user) return;
@@ -110,19 +98,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return investments.reduce((acc, inv) => acc + inv.amount, 0);
   };
 
-  const getUserInvestmentPercentage = () => {
+  const getUserContributionAmount = () => {
     if (!user) return 0;
-  
-    if (user.isAdmin) return 100;
-  
+    return investments.filter(i => i.userId === user.id).reduce((acc, i) => acc + i.amount, 0);
+  };
+
+  const getUserInvestmentPercentage = () => {
     const total = getTotalInvestment();
-    const userTotal = investments
-      .filter(i => i.userId === user.id)
-      .reduce((acc, i) => acc + i.amount, 0);
-  
+    const userTotal = getUserContributionAmount();
     return total > 0 ? (userTotal / total) * 100 : 0;
   };
-  
+
+  const getAllUsersInvestmentData = () => {
+    const totals: Record<string, { name: string; amount: number }> = {};
+
+    investments.forEach(inv => {
+      if (!totals[inv.userId]) {
+        totals[inv.userId] = { name: inv.userName, amount: 0 };
+      }
+      totals[inv.userId].amount += inv.amount;
+    });
+
+    const total = getTotalInvestment();
+    return Object.values(totals).map(u => ({
+      name: u.name,
+      amount: u.amount,
+      percentage: total > 0 ? (u.amount / total) * 100 : 0
+    }));
+  };
 
   const startTimeSession = (hourlyRate: number): string => {
     if (!user) return '';
@@ -141,7 +144,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const sessionId = newDocRef.id;
 
     addDoc(collection(db, 'timeSessions'), { ...session, id: sessionId });
-
     return sessionId;
   };
 
@@ -168,37 +170,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null;
   };
 
-  const getAllUsersInvestmentData = () => {
-    const totals: Record<string, { name: string; amount: number }> = {};
-
-    investments.forEach(inv => {
-      if (!totals[inv.userId]) {
-        totals[inv.userId] = { name: inv.userName, amount: 0 };
-      }
-      totals[inv.userId].amount += inv.amount;
-    });
-
-    const total = getTotalInvestment();
-    return Object.values(totals).map(u => ({
-      name: u.name,
-      amount: u.amount,
-      percentage: total > 0 ? (u.amount / total) * 100 : 0
-    }));
-  };
-
-  const value: DataContextType = {
-    investments,
-    timeSessions,
-    addInvestment,
-    updateInvestment,
-    deleteInvestment,
-    getTotalInvestment,
-    getUserInvestmentPercentage,
-    startTimeSession,
-    stopTimeSession,
-    getCurrentTimeSession,
-    getAllUsersInvestmentData
-  };
-
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider
+      value={{
+        investments,
+        timeSessions,
+        addInvestment,
+        updateInvestment,
+        deleteInvestment,
+        getTotalInvestment,
+        getUserInvestmentPercentage,
+        getUserContributionAmount,
+        startTimeSession,
+        stopTimeSession,
+        getCurrentTimeSession,
+        getAllUsersInvestmentData
+      }}
+    >
+      {children}
+    </DataContext.Provider>
+  );
 };

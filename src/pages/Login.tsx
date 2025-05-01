@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../contexts/ThemeContext'; // 👈 Importa o contexto de tema
+import { useTheme } from '../contexts/ThemeContext';
 
 const Login: React.FC = () => {
   const { login, error } = useAuth();
-  const { theme, toggleTheme } = useTheme(); // 👈 Usa o contexto de tema
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -71,8 +71,20 @@ const Login: React.FC = () => {
 
         {/* Links extras */}
         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-          <p>Não tem uma conta? <span className="text-blue-600 hover:underline cursor-pointer">Registrar</span></p>
-          <p><span className="text-blue-600 hover:underline cursor-pointer">Esqueceu a senha?</span></p>
+          <p>
+            Não tem uma conta?{' '}
+            <span
+              className="text-blue-600 hover:underline cursor-pointer"
+              onClick={() => navigate('/register')}
+            >
+              Registrar
+            </span>
+          </p>
+          <p>
+            <span className="text-blue-600 hover:underline cursor-pointer">
+              Esqueceu a senha?
+            </span>
+          </p>
         </div>
       </div>
     </div>
