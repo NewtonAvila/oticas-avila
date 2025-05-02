@@ -1,3 +1,4 @@
+// src/pages/Dashboard.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
@@ -13,7 +14,7 @@ const Dashboard: React.FC = () => {
   const percentage = getUserInvestmentPercentage();
   const userContribution = getUserContributionAmount();
 
-  const adminCard = [
+  const adminCards = [
     {
       title: 'Gerenciar Usuários',
       description: 'Ver dados, editar ou excluir usuários',
@@ -46,6 +47,13 @@ const Dashboard: React.FC = () => {
       color: 'bg-yellow-500'
     },
     {
+      title: 'Cadastro de Produtos',
+      description: 'Gerenciar estoque e preços',
+      path: '/register-product',
+      icon: <span className="text-2xl">📦</span>,
+      color: 'bg-green-500'
+    },
+    {
       title: 'Visualizar Dados',
       description: 'Gráficos e estatísticas',
       path: '/data',
@@ -54,7 +62,7 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  const menuItems = user?.isAdmin ? adminCard : regularCards;
+  const menuItems = user?.isAdmin ? adminCards : regularCards;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
@@ -63,7 +71,7 @@ const Dashboard: React.FC = () => {
         {/* Boas-vindas */}
         <div className="bg-indigo-600 text-white rounded-lg p-4 shadow">
           <h2 className="text-xl font-bold">
-            Olá, {user?.isAdmin ? 'Administrador' : `${user?.firstName}`}!
+            Olá, {user?.isAdmin ? 'Administrador' : user?.firstName}!
           </h2>
           <p className="text-sm">
             {user?.isAdmin
@@ -72,16 +80,17 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Dados do usuário */}
+        {/* Dados do usuário (apenas não-admin) */}
         {!user?.isAdmin && (
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
               <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
               <p className="text-3xl font-bold text-gray-800 dark:text-white">
                 R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Sua contribuição: R$ {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Sua contribuição: R${' '}
+                {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
@@ -96,13 +105,13 @@ const Dashboard: React.FC = () => {
 
         {/* Navegação rápida */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {menuItems.map((item, index) => (
+          {menuItems.map((item, idx) => (
             <button
-              key={index}
+              key={idx}
               onClick={() => navigate(item.path)}
-              className="card h-48 flex flex-col items-center justify-center text-center hover:shadow-lg cursor-pointer transform transition-all duration-300 hover:-translate-y-1 bg-white dark:bg-gray-800 rounded"
+              className="flex flex-col items-center justify-center text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-transform transform hover:-translate-y-1"
             >
-              <div className={`${item.color} text-white p-3 rounded-lg mb-4`}>
+              <div className={`${item.color} text-white p-3 rounded-lg mb-3`}>
                 {item.icon}
               </div>
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">

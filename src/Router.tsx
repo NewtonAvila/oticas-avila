@@ -1,3 +1,4 @@
+// src/Router.tsx
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
@@ -5,12 +6,12 @@ import Dashboard from "./pages/Dashboard";
 import InvestmentForm from "./pages/InvestmentForm";
 import TimeTracker from "./pages/TimeTracker";
 import DataVisualization from "./pages/DataVisualization";
+import RegisterDebt from "./pages/RegisterDebt";
+import RegisterProduct from "./pages/RegisterProduct";
 import Login from "./pages/Login";
-import Register from "./pages/Register"; // ✅ Importar a nova tela
+import Register from "./pages/Register";
 import AdminPanel from "./pages/AdminPanel";
 import AdminUserManager from "./pages/AdminUserManager";
-import RegisterDebt from './pages/RegisterDebt';
-
 
 const AppRoutes: React.FC = () => {
   const { user } = useAuth();
@@ -20,24 +21,32 @@ const AppRoutes: React.FC = () => {
       <Routes>
         {user ? (
           <>
+            {/* Tela principal */}
             <Route path="/" element={<Dashboard />} />
+
+            {/* Funcionalidades do usuário */}
             <Route path="/investments" element={<InvestmentForm />} />
             <Route path="/time-tracker" element={<TimeTracker />} />
             <Route path="/data" element={<DataVisualization />} />
             <Route path="/register-debt" element={<RegisterDebt />} />
+            <Route path="/register-product" element={<RegisterProduct />} />  {/* 🔹 Rota adicionada */}
 
+            {/* Painel de admin */}
             {user.isAdmin && (
               <>
                 <Route path="/admin" element={<AdminPanel />} />
                 <Route path="/admin-users" element={<AdminUserManager />} />
               </>
             )}
+
+            {/* Qualquer outra URL redireciona para a home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </>
         ) : (
           <>
+            {/* Login / Registro */}
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} /> {/* ✅ Nova rota de registro */}
+            <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         )}

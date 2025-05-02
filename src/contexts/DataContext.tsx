@@ -1,11 +1,17 @@
+// src/contexts/DataContext.tsx
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {
   collection,
+  doc,
+  onSnapshot,
+  runTransaction,
+  query,
+  where,
+  getDocs,
   addDoc,
   updateDoc,
   deleteDoc,
-  doc,
-  onSnapshot
+  DocumentReference
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
@@ -43,119 +49,137 @@ export type Debt = {
   userName: string;
 };
 
+// ————— Novo tipo para Produtos —————
+export type Product = {
+  id: string;
+  seq: number;
+  description: string;
+  costPrice: number;
+  profitMargin: number; // em %
+  salePrice: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
 type DataContextType = {
+  // Investimentos
   investments: Investment[];
-  timeSessions: TimeSession[];
-  debts: Debt[];
-  addInvestment: (description: string, amount: number, isTimeInvestment?: boolean) => void;
-  updateInvestment: (id: string, data: Partial<Investment>) => void;
-  deleteInvestment: (id: string) => void;
+  addInvestment: (description: string, amount: number, isTimeInvestment?: boolean) => Promise<void>;
+  updateInvestment: (id: string, data: Partial<Investment>) => Promise<void>;
+  deleteInvestment: (id: string) => Promise<void>;
   getTotalInvestment: () => number;
   getUserInvestmentPercentage: () => number;
   getUserContributionAmount: () => number;
   getAllUsersInvestmentData: () => Array<{ name: string; amount: number; percentage: number }>;
+
+  // Sessões de Tempo
+  timeSessions: TimeSession[];
   startTimeSession: (hourlyRate: number) => string;
-  stopTimeSession: (sessionId: string, isPaid: boolean) => void;
+  stopTimeSession: (sessionId: string, isPaid: boolean) => Promise<void>;
   getCurrentTimeSession: () => TimeSession | null;
 
   // Débitos
-  addDebt: (debt: Omit<Debt, 'id'>) => void;
-  markDebtAsPaid: (id: string) => void;
-  markDebtAsUnpaid: (id: string) => void;
+  debts: Debt[];
+  addDebt: (debt: Omit<Debt, 'id'>) => Promise<void>;
+  updateDebt: (id: string, data: Partial<Debt>) => Promise<void>;
+  deleteDebt: (id: string) => Promise<void>;
+  markDebtAsPaid: (id: string) => Promise<void>;
+  markDebtAsUnpaid: (id: string) => Promise<void>;
+
+  // —— NOVO: Produtos
+  products: Product[];
+  addProduct: (
+    p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
+  ) => Promise<void>;
+  updateProduct: (
+    id: string,
+    updates: Partial<Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy'>>
+  ) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  searchProducts: (term: string) => Promise<Product[]>;
+  getTotalProductValue: () => number;
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
 export const useData = () => useContext(DataContext);
 
-export const DataProvider = ({ children }: { children: ReactNode }) => {
+export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
+  // — snapshot de todas as coleções
   useEffect(() => {
-    const unsubscribeInvestments = onSnapshot(collection(db, 'investments'), snapshot => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Investment));
-      setInvestments(data);
-    });
-
-    const unsubscribeSessions = onSnapshot(collection(db, 'timeSessions'), snapshot => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as TimeSession));
-      setTimeSessions(data);
-    });
-
-    const unsubscribeDebts = onSnapshot(collection(db, 'debts'), snapshot => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Debt));
-      setDebts(data);
-    });
-
+    const unsubInv = onSnapshot(collection(db, 'investments'), snap =>
+      setInvestments(snap.docs.map(d => ({ ...(d.data() as Omit<Investment, 'id'>), id: d.id })))
+    );
+    const unsubSess = onSnapshot(collection(db, 'timeSessions'), snap =>
+      setTimeSessions(snap.docs.map(d => ({ ...(d.data() as Omit<TimeSession, 'id'>), id: d.id })))
+    );
+    const unsubDebt = onSnapshot(collection(db, 'debts'), snap =>
+      setDebts(snap.docs.map(d => ({ ...(d.data() as Omit<Debt, 'id'>), id: d.id })))
+    );
+    const unsubProd = onSnapshot(collection(db, 'products'), snap =>
+      setProducts(snap.docs.map(d => ({ ...(d.data() as Omit<Product, 'id'>), id: d.id })))
+    );
     return () => {
-      unsubscribeInvestments();
-      unsubscribeSessions();
-      unsubscribeDebts();
+      unsubInv();
+      unsubSess();
+      unsubDebt();
+      unsubProd();
     };
   }, []);
 
-  const addInvestment = async (description: string, amount: number, isTimeInvestment: boolean = false) => {
+  // — Investimentos
+  const addInvestment = async (description: string, amount: number, isTimeInvestment = false) => {
     if (!user) return;
-
-    const investment: Omit<Investment, 'id'> = {
+    await addDoc(collection(db, 'investments'), {
       description,
       amount,
+      isTimeInvestment,
       userId: user.id,
       userName: user.username,
-      date: new Date().toISOString(),
-      isTimeInvestment
-    };
-
-    await addDoc(collection(db, 'investments'), investment);
+      date: new Date().toISOString()
+    });
   };
-
-  const updateInvestment = async (id: string, data: Partial<Investment>) => {
-    await updateDoc(doc(db, 'investments', id), data);
-  };
-
-  const deleteInvestment = async (id: string) => {
-    await deleteDoc(doc(db, 'investments', id));
-  };
-
-  const getTotalInvestment = () => {
-    return investments.reduce((acc, inv) => acc + inv.amount, 0);
-  };
-
-  const getUserContributionAmount = () => {
-    if (!user) return 0;
-    return investments.filter(i => i.userId === user.id).reduce((acc, i) => acc + i.amount, 0);
-  };
-
+  const updateInvestment = async (id: string, data: Partial<Investment>) =>
+    updateDoc(doc(db, 'investments', id), data);
+  const deleteInvestment = async (id: string) =>
+    deleteDoc(doc(db, 'investments', id));
+  const getTotalInvestment = () =>
+    investments.reduce((sum, i) => sum + i.amount, 0);
+  const getUserContributionAmount = () =>
+    user
+      ? investments.filter(i => i.userId === user.id).reduce((sum, i) => sum + i.amount, 0)
+      : 0;
   const getUserInvestmentPercentage = () => {
     const total = getTotalInvestment();
-    const userTotal = getUserContributionAmount();
-    return total > 0 ? (userTotal / total) * 100 : 0;
+    const yours = getUserContributionAmount();
+    return total > 0 ? (yours / total) * 100 : 0;
   };
-
   const getAllUsersInvestmentData = () => {
-    const totals: Record<string, { name: string; amount: number }> = {};
-
-    investments.forEach(inv => {
-      if (!totals[inv.userId]) {
-        totals[inv.userId] = { name: inv.userName, amount: 0 };
-      }
-      totals[inv.userId].amount += inv.amount;
+    const map: Record<string, { name: string; amount: number }> = {};
+    investments.forEach(i => {
+      if (!map[i.userId]) map[i.userId] = { name: i.userName, amount: 0 };
+      map[i.userId].amount += i.amount;
     });
-
     const total = getTotalInvestment();
-    return Object.values(totals).map(u => ({
+    return Object.values(map).map(u => ({
       name: u.name,
       amount: u.amount,
       percentage: total > 0 ? (u.amount / total) * 100 : 0
     }));
   };
 
+  // — Sessões de Tempo
   const startTimeSession = (hourlyRate: number): string => {
     if (!user) return '';
-
-    const session: Omit<TimeSession, 'id'> = {
+    const session = {
       userId: user.id,
       startTime: new Date().toISOString(),
       endTime: null,
@@ -164,71 +188,148 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       isPaid: false,
       isCompleted: false
     };
-
-    const newDocRef = doc(collection(db, 'timeSessions'));
-    const sessionId = newDocRef.id;
-
-    addDoc(collection(db, 'timeSessions'), { ...session, id: sessionId });
-    return sessionId;
+    const ref = doc(collection(db, 'timeSessions'));
+    addDoc(collection(db, 'timeSessions'), { ...session, id: ref.id });
+    return ref.id;
   };
-
   const stopTimeSession = async (sessionId: string, isPaid: boolean) => {
-    const session = timeSessions.find(s => s.id === sessionId);
-    if (!session || !user) return;
-
+    const sess = timeSessions.find(s => s.id === sessionId);
+    if (!sess || !user) return;
     const endTime = new Date().toISOString();
-    const updatedSession = { ...session, endTime, isPaid, isCompleted: true };
-
-    await updateDoc(doc(db, 'timeSessions', sessionId), updatedSession);
-
+    await updateDoc(doc(db, 'timeSessions', sessionId), {
+      endTime,
+      isPaid,
+      isCompleted: true
+    });
     if (!isPaid) {
-      const start = new Date(session.startTime).getTime();
-      const end = new Date(endTime).getTime();
-      const duration = (end - start - session.pausedTime) / (1000 * 60 * 60);
-      const amount = duration * session.hourlyRate;
-      await addInvestment(`Investimento de Tempo (${duration.toFixed(2)}h)`, amount, true);
+      const hours = (new Date(endTime).getTime() - new Date(sess.startTime).getTime() - sess.pausedTime) / 3600000;
+      await addInvestment(`Investimento de Tempo (${hours.toFixed(2)}h)`, hours * sess.hourlyRate, true);
     }
   };
+  const getCurrentTimeSession = () =>
+    user ? timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null : null;
 
-  const getCurrentTimeSession = (): TimeSession | null => {
-    if (!user) return null;
-    return timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null;
+  // — Débitos
+  const addDebt = async (d: Omit<Debt, 'id'>) => {
+    if (!user) return;
+    await addDoc(collection(db, 'debts'), d);
+  };
+  const updateDebt = async (id: string, data: Partial<Debt>) =>
+    updateDoc(doc(db, 'debts', id), data);
+  const deleteDebt = async (id: string) =>
+    deleteDoc(doc(db, 'debts', id));
+  const markDebtAsPaid = async (id: string) =>
+    updateDoc(doc(db, 'debts', id), { paid: true });
+  const markDebtAsUnpaid = async (id: string) =>
+    updateDoc(doc(db, 'debts', id), { paid: false });
+
+  // — Produtos com seq auto-increment
+  const addProduct = async (
+    p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
+  ) => {
+    if (!user) return;
+    await runTransaction(db, async tx => {
+      const counterRef = doc(db, 'counters', 'products');
+      // lê ou inicia contador
+      const counterSnap = await tx.get(counterRef);
+      const lastSeq: number = (counterSnap.exists() && counterSnap.data().lastSeq) || 0;
+      const newSeq = lastSeq + 1;
+      // atualiza contador
+      tx.set(counterRef, { lastSeq: newSeq }, { merge: true });
+
+      // prepara dados do produto
+      const now = new Date().toISOString();
+      const salePrice = p.costPrice * (1 + p.profitMargin / 100);
+      const prodRef = doc(collection(db, 'products')) as DocumentReference<Product>;
+
+      // grava produto incluindo id e seq
+      tx.set(prodRef, {
+        id: prodRef.id,
+        seq: newSeq,
+        description: p.description,
+        costPrice: p.costPrice,
+        profitMargin: p.profitMargin,
+        salePrice,
+        createdAt: now,
+        createdBy: user.id
+      });
+    });
   };
 
-  const addDebt = async (debt: Omit<Debt, 'id'>) => {
-    await addDoc(collection(db, 'debts'), debt);
+  const updateProduct = async (
+    id: string,
+    updates: Partial<Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy'>>
+  ) => {
+    if (!user) return;
+    // recalcula salePrice
+    const orig = products.find(x => x.id === id)!;
+    const cost = updates.costPrice ?? orig.costPrice;
+    const margin = updates.profitMargin ?? orig.profitMargin;
+    const salePrice = cost * (1 + margin / 100);
+    const now = new Date().toISOString();
+    await updateDoc(doc(db, 'products', id), {
+      ...updates,
+      salePrice,
+      updatedAt: now,
+      updatedBy: user.id
+    });
   };
 
-  const markDebtAsPaid = async (id: string) => {
-    await updateDoc(doc(db, 'debts', id), { paid: true });
+  const deleteProduct = async (id: string) =>
+    deleteDoc(doc(db, 'products', id));
+
+  const searchProducts = async (term: string): Promise<Product[]> => {
+    // primeiro tenta por seq exato
+    const bySeq = products.find(p => p.seq.toString() === term);
+    if (bySeq) return [bySeq];
+    // senão busca por descrição
+    const q = query(
+      collection(db, 'products'),
+      where('description', '>=', term),
+      where('description', '<=', term + '\uf8ff')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ ...(d.data() as Omit<Product, 'id'>), id: d.id }));
   };
 
-  const markDebtAsUnpaid = async (id: string) => {
-    await updateDoc(doc(db, 'debts', id), { paid: false });
-  };
+  const getTotalProductValue = () =>
+    products.reduce((sum, p) => sum + p.salePrice, 0);
 
   return (
     <DataContext.Provider
       value={{
         investments,
-        timeSessions,
-        debts,
         addInvestment,
         updateInvestment,
         deleteInvestment,
         getTotalInvestment,
         getUserInvestmentPercentage,
         getUserContributionAmount,
+        getAllUsersInvestmentData,
+
+        timeSessions,
         startTimeSession,
         stopTimeSession,
         getCurrentTimeSession,
-        getAllUsersInvestmentData,
+
+        debts,
         addDebt,
+        updateDebt,
+        deleteDebt,
         markDebtAsPaid,
-        markDebtAsUnpaid
+        markDebtAsUnpaid,
+
+        products,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        searchProducts,
+        getTotalProductValue
       }}
     >
       {children}
     </DataContext.Provider>
   );
 };
+
+export default DataContext;
