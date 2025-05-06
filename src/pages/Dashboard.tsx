@@ -26,6 +26,13 @@ const Dashboard: React.FC = () => {
 
   const regularCards = [
     {
+      title: 'Registrar Venda',
+      description: 'Registrar vendas e estornar',
+      path: '/register-sale',          // rota para a tela de vendas
+      icon: <span className="text-2xl">🛒</span>,
+      color: 'bg-orange-500'
+    },
+    {
       title: 'Registrar Investimento',
       description: 'Adicionar novos investimentos',
       path: '/investments',
@@ -80,8 +87,8 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Dados do usuário (apenas não-admin) */}
-        {!user?.isAdmin && (
+        {/* Indicadores (só para não-admin) */}
+        {/*!user?.isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
               <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
@@ -89,8 +96,7 @@ const Dashboard: React.FC = () => {
                 R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Sua contribuição: R${' '}
-                {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Sua contribuição: R$ {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
@@ -101,9 +107,9 @@ const Dashboard: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Do total investido</p>
             </div>
           </div>
-        )}
+        )*/}
 
-        {/* Navegação rápida */}
+        {/* Cards de navegação rápida */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {menuItems.map((item, idx) => (
             <button
