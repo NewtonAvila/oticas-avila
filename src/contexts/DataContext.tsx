@@ -10,8 +10,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  DocumentReference,
-  setDoc
+  DocumentReference
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
@@ -24,6 +23,7 @@ export type Investment = {
   userName: string;
   date: string;
   isTimeInvestment: boolean;
+  sessionId?: string;
 };
 
 export type TimeSession = {
@@ -80,7 +80,7 @@ export type Product = {
 
 type DataContextType = {
   investments: Investment[];
-  addInvestment: (description: string, amount: number, isTimeInvestment?: boolean) => Promise<void>;
+  addInvestment: (description: string, amount: number, isTimeInvestment?: boolean, sessionId?: string) => Promise<void>;
   updateInvestment: (id: string, data: Partial<Investment>) => Promise<void>;
   deleteInvestment: (id: string) => Promise<void>;
   getTotalInvestment: () => number;
@@ -89,9 +89,11 @@ type DataContextType = {
   getAllUsersInvestmentData: () => Array<{ name: string; amount: number; percentage: number }>;
 
   timeSessions: TimeSession[];
-  startTimeSession: (hourlyRate: number) => string;
+  startTimeSession: (hourlyRate: number, isPaid: boolean) => string;
   stopTimeSession: (sessionId: string, isPaid: boolean) => Promise<void>;
   getCurrentTimeSession: () => TimeSession | null;
+  updateTimeSession: (id: string, data: Partial<TimeSession>) => Promise<void>;
+  deleteTimeSession: (id: string) => Promise<void>;
 
   debts: Debt[];
   addDebt: (debt: Omit<Debt, 'id'>) => Promise<void>;
@@ -165,32 +167,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  const addInvestment = async (description: string, amount: number, isTimeInvestment = false) => {
+  const addInvestment = async (description: string, amount: number, isTimeInvestment = false, sessionId?: string) => {
     if (!user) return;
-    await addDoc(collection(db, 'investments'), {
-      description,
-      amount,
-      isTimeInvestment,
-      userId: user.id,
-      userName: user.username,
-      date: new Date().toISOString()
-    });
+    try {
+      await addDoc(collection(db, 'investments'), {
+        description,
+        amount,
+        isTimeInvestment,
+        userId: user.id,
+        userName: user.username,
+        date: new Date().toISOString(),
+        sessionId
+      });
+      console.log('Investimento adicionado com sucesso:', { description, amount, sessionId });
+    } catch (error) {
+      console.error('Erro ao adicionar investimento:', error);
+    }
   };
+
   const updateInvestment = (id: string, data: Partial<Investment>) =>
     updateDoc(doc(db, 'investments', id), data);
+
   const deleteInvestment = (id: string) =>
     deleteDoc(doc(db, 'investments', id));
+
   const getTotalInvestment = () =>
     investments.reduce((sum, i) => sum + i.amount, 0);
+
   const getUserContributionAmount = () =>
     user
       ? investments.filter(i => i.userId === user.id).reduce((sum, i) => sum + i.amount, 0)
       : 0;
+
   const getUserInvestmentPercentage = () => {
     const total = getTotalInvestment();
     const yours = getUserContributionAmount();
     return total > 0 ? (yours / total) * 100 : 0;
   };
+
   const getAllUsersInvestmentData = () => {
     const map: Record<string, { name: string; amount: number }> = {};
     investments.forEach(i => {
@@ -205,7 +219,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }));
   };
 
-  const startTimeSession = (hourlyRate: number): string => {
+  const startTimeSession = (hourlyRate: number, isPaid: boolean): string => {
     if (!user) return '';
     const ref = doc(collection(db, 'timeSessions'));
     addDoc(collection(db, 'timeSessions'), {
@@ -215,44 +229,139 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       endTime: null,
       pausedTime: 0,
       hourlyRate,
-      isPaid: false,
+      isPaid,
       isCompleted: false
     });
     return ref.id;
   };
+
   const stopTimeSession = async (sessionId: string, isPaid: boolean) => {
     const sess = timeSessions.find(s => s.id === sessionId);
-    if (!sess || !user) return;
-    const endTime = new Date().toISOString();
-    await updateDoc(doc(db, 'timeSessions', sessionId), {
-      endTime,
-      isPaid,
-      isCompleted: true
-    });
-    if (!isPaid) {
-      const hours =
-        (new Date(endTime).getTime() -
-          new Date(sess.startTime).getTime() -
-          sess.pausedTime) /
-        3600000;
-      await addInvestment(`Investimento de Tempo (${hours.toFixed(2)}h)`, hours * sess.hourlyRate, true);
+    if (!sess || !user) {
+      console.error('Sessão ou usuário não encontrado ao parar:', { sessionId, user });
+      return;
+    }
+    try {
+      const endTime = new Date().toISOString();
+      await updateDoc(doc(db, 'timeSessions', sessionId), {
+        endTime,
+        isPaid,
+        isCompleted: true
+      });
+      console.log('Sessão atualizada com sucesso:', { sessionId, endTime, isPaid });
+
+      if (!isPaid) {
+        const hours =
+          (new Date(endTime).getTime() -
+            new Date(sess.startTime).getTime() -
+            sess.pausedTime) /
+          3600000;
+        await addInvestment(
+          `Investimento de Tempo (${hours.toFixed(2)}h)`,
+          hours * sess.hourlyRate,
+          true,
+          sessionId
+        );
+        console.log('Investimento de tempo criado:', { hours: hours.toFixed(2), amount: (hours * sess.hourlyRate).toFixed(2), sessionId });
+      }
+    } catch (error) {
+      console.error('Erro ao parar sessão ou criar investimento:', error);
+      alert('Ocorreu um erro ao finalizar a sessão. Verifique o console para mais detalhes.');
     }
   };
+
   const getCurrentTimeSession = () =>
     user
       ? timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null
       : null;
 
+  const updateTimeSession = async (id: string, data: Partial<TimeSession>) => {
+    if (!user) return;
+    try {
+      // Obter a sessão atual antes da atualização
+      const sessionBeforeUpdate = timeSessions.find(s => s.id === id);
+      if (!sessionBeforeUpdate) {
+        console.error('Sessão não encontrada:', { sessionId: id });
+        return;
+      }
+
+      // Atualizar a sessão no Firestore
+      await updateDoc(doc(db, 'timeSessions', id), data);
+      console.log('Sessão atualizada:', { sessionId: id, updatedData: data });
+
+      // Verificar se a sessão está completa e se o tipo (isPaid) mudou
+      const isPaidAfterUpdate = data.isPaid !== undefined ? data.isPaid : sessionBeforeUpdate.isPaid;
+      const endTime = data.endTime !== undefined ? data.endTime : sessionBeforeUpdate.endTime;
+      const startTime = data.startTime !== undefined ? data.startTime : sessionBeforeUpdate.startTime;
+      const hourlyRate = data.hourlyRate !== undefined ? data.hourlyRate : sessionBeforeUpdate.hourlyRate;
+      const pausedTime = data.pausedTime !== undefined ? data.pausedTime : sessionBeforeUpdate.pausedTime;
+
+      if (endTime) {
+        const hours =
+          Math.round(((new Date(endTime).getTime() - new Date(startTime).getTime() - pausedTime) / 3600000) * 100) / 100;
+        const amount = Math.round(hours * hourlyRate * 100) / 100;
+
+        const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
+
+        // Caso 1: Mudou de "Pago" para "Investido"
+        if (sessionBeforeUpdate.isPaid && !isPaidAfterUpdate) {
+          await addInvestment(
+            `Investimento de Tempo (${hours.toFixed(2)}h)`,
+            amount,
+            true,
+            id
+          );
+          console.log('Novo investimento criado:', { sessionId: id, amount: amount.toFixed(2) });
+        }
+        // Caso 2: Mudou de "Investido" para "Pago"
+        else if (!sessionBeforeUpdate.isPaid && isPaidAfterUpdate && investment) {
+          await deleteInvestment(investment.id);
+          console.log('Investimento removido:', { investmentId: investment.id });
+        }
+        // Caso 3: Permanece como "Investido", apenas atualizar o investimento existente
+        else if (!isPaidAfterUpdate && investment) {
+          await updateInvestment(investment.id, {
+            description: `Investimento de Tempo (${hours.toFixed(2)}h)`,
+            amount: amount
+          });
+          console.log('Investimento atualizado:', { sessionId: id, newAmount: amount.toFixed(2) });
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar sessão ou investimento:', error);
+    }
+  };
+
+  const deleteTimeSession = async (id: string) => {
+    if (!user) return;
+    try {
+      // Deletar o investimento associado, se existir
+      const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
+      if (investment) {
+        await deleteInvestment(investment.id);
+        console.log('Investimento associado deletado:', { investmentId: investment.id });
+      }
+      await deleteDoc(doc(db, 'timeSessions', id));
+      console.log('Sessão deletada:', { sessionId: id });
+    } catch (error) {
+      console.error('Erro ao deletar sessão ou investimento:', error);
+    }
+  };
+
   const addDebt = async (d: Omit<Debt, 'id'>) => {
     if (!user) return;
     await addDoc(collection(db, 'debts'), d);
   };
+
   const updateDebt = (id: string, data: Partial<Debt>) =>
     updateDoc(doc(db, 'debts', id), data);
+
   const deleteDebt = (id: string) =>
     deleteDoc(doc(db, 'debts', id));
+
   const markDebtAsPaid = (id: string) =>
     updateDoc(doc(db, 'debts', id), { paid: true });
+
   const markDebtAsUnpaid = (id: string) =>
     updateDoc(doc(db, 'debts', id), { paid: false });
 
@@ -366,7 +475,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const saleRef = doc(db, 'vendas', id);
         const saleSnap = await tx.get(saleRef);
         if (!saleSnap.exists()) {
-          return; // Document already deleted, no action needed
+          return;
         }
 
         const sale = saleSnap.data() as Sale;
@@ -380,15 +489,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const newQty = curQty + sale.quantity;
           tx.update(prodRef, { quantity: newQty });
         } else {
-          // Recreate the product with the returned quantity
           const now = new Date().toISOString();
           tx.set(prodRef, {
             id: sale.productId,
-            seq: 0, // You might want to fetch the correct seq from counters if needed
+            seq: 0,
             description: sale.description,
-            costPrice: 0, // Default or fetch original costPrice if available
-            profitMargin: 0, // Default or fetch original profitMargin if available
-            salePrice: sale.finalUnitPrice, // Use the sale price as a fallback
+            costPrice: 0,
+            profitMargin: 0,
+            salePrice: sale.finalUnitPrice,
             quantity: sale.quantity,
             createdAt: now,
             createdBy: user.id
@@ -436,6 +544,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         startTimeSession,
         stopTimeSession,
         getCurrentTimeSession,
+        updateTimeSession,
+        deleteTimeSession,
 
         debts,
         addDebt,

@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import { useData, Product, Sale } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../utils/format';
+import { Trash } from 'lucide-react';
 
 const RegisterSale: React.FC = () => {
   const { products, addSale, undoSale, sales } = useData();
@@ -221,14 +222,15 @@ const RegisterSale: React.FC = () => {
                     {new Date(s.soldAt).toLocaleDateString()} — {s.quantity}×{formatCurrency(s.finalUnitPrice)}
                   </p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex items-center gap-2">
                   <p className="font-semibold">{formatCurrency(s.totalPrice)}</p>
                   <button
                     onClick={() => handleDeleteSale(s.id)}
-                    className="text-sm text-red-600 underline mt-1"
+                    className="text-red-600 hover:text-red-800"
                     disabled={deletingSaleId === s.id}
+                    title={deletingSaleId === s.id ? 'Excluindo...' : 'Excluir'}
                   >
-                    {deletingSaleId === s.id ? 'Excluindo...' : 'Excluir'}
+                    <Trash size={16} />
                   </button>
                 </div>
               </div>

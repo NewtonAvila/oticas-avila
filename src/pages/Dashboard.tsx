@@ -83,7 +83,7 @@ const Dashboard: React.FC = () => {
           <p className="text-sm">
             {user?.isAdmin
               ? 'Gerencie seus investimentos e horas trabalhadas a partir deste painel.'
-              : 'Gerencie seus investimentos e sessões de tempo de forma fácil.'}
+              : 'Gerencie as Óticas Avila de forma fácil!'}
           </p>
         </div>
 

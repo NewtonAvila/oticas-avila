@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import { useData, Product } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../utils/format';
+import { Edit, Trash } from 'lucide-react';
 
 const RegisterProduct: React.FC = () => {
   const {
@@ -22,6 +23,7 @@ const RegisterProduct: React.FC = () => {
   const [filtered, setFiltered] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editProduct, setEditProduct] = useState<{ id: string; description: string; costPrice: string; profitMargin: string; quantity: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -68,30 +70,42 @@ const RegisterProduct: React.FC = () => {
     }
   };
 
-  const handleUpdate = async (
-    id: string,
-    field: 'description' | 'costPrice' | 'profitMargin' | 'quantity',
-    value: string
-  ) => {
-    const data: Partial<Product> = {};
-    if (field === 'description') {
-      data.description = value;
-    } else if (field === 'costPrice') {
-      const cp = parseFloat(value);
-      if (!isNaN(cp)) data.costPrice = cp;
-    } else if (field === 'profitMargin') {
-      const pm = parseFloat(value);
-      if (!isNaN(pm)) data.profitMargin = pm;
-    } else if (field === 'quantity') {
-      const qt = parseInt(value, 10);
-      if (!isNaN(qt)) data.quantity = qt;
+  const handleEditRow = (id: string, description: string, costPrice: number, profitMargin: number, quantity: number) => {
+    setEditProduct({
+      id,
+      description,
+      costPrice: costPrice.toString(),
+      profitMargin: profitMargin.toString(),
+      quantity: quantity.toString()
+    });
+  };
+
+  const handleSaveRow = async () => {
+    if (editProduct) {
+      const cp = parseFloat(editProduct.costPrice);
+      const pm = parseFloat(editProduct.profitMargin);
+      const qt = parseInt(editProduct.quantity, 10);
+      if (!editProduct.description.trim() || isNaN(cp) || isNaN(pm) || isNaN(qt)) {
+        alert('Por favor, preencha todos os campos com valores válidos.');
+        return;
+      }
+      try {
+        await updateProduct(editProduct.id, {
+          description: editProduct.description,
+          costPrice: cp,
+          profitMargin: pm,
+          quantity: qt
+        });
+        setEditProduct(null);
+      } catch (err) {
+        setError('Erro ao atualizar produto.');
+        console.error('Erro ao atualizar produto:', err);
+      }
     }
-    try {
-      await updateProduct(id, data);
-    } catch (err) {
-      setError('Erro ao atualizar produto.');
-      console.error('Erro ao atualizar produto:', err);
-    }
+  };
+
+  const handleCancelRow = () => {
+    setEditProduct(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -134,43 +148,90 @@ const RegisterProduct: React.FC = () => {
           </div>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {Array.isArray(filtered) && filtered.length > 0 ? (
-              filtered.map(p => (
-                <div
-                  key={p.id}
-                  className="grid grid-cols-7 gap-2 items-center border-b py-2"
-                >
-                  <div className="col-span-1 text-xs text-gray-500">{p.seq}</div>
-                  <input
-                    defaultValue={p.description}
-                    onBlur={e => handleUpdate(p.id, 'description', e.target.value)}
-                    className="input-field col-span-2"
-                  />
-                  <input
-                    defaultValue={p.costPrice.toString()}
-                    onBlur={e => handleUpdate(p.id, 'costPrice', e.target.value)}
-                    className="input-field col-span-1"
-                  />
-                  <input
-                    defaultValue={p.profitMargin.toString()}
-                    onBlur={e => handleUpdate(p.id, 'profitMargin', e.target.value)}
-                    className="input-field col-span-1"
-                  />
-                  <input
-                    defaultValue={p.quantity?.toString() || '0'}
-                    onBlur={e => handleUpdate(p.id, 'quantity', e.target.value)}
-                    className="input-field col-span-1"
-                  />
-                  <div className="col-span-1 font-medium">
-                    {formatCurrency(p.salePrice)}
-                  </div>
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="text-red-600 text-sm hover:underline col-span-1"
+              filtered.map(p => {
+                const isEditing = editProduct?.id === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className="grid grid-cols-8 gap-2 items-center border-b py-2"
                   >
-                    Excluir
-                  </button>
-                </div>
-              ))
+                    <div className="col-span-1 text-xs text-gray-500">{p.seq}</div>
+                    {isEditing && editProduct ? (
+                      <>
+                        <input
+                          value={editProduct.description}
+                          onChange={(e) => setEditProduct({ ...editProduct, description: e.target.value })}
+                          className="input-field col-span-2"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editProduct.costPrice}
+                          onChange={(e) => setEditProduct({ ...editProduct, costPrice: e.target.value })}
+                          className="input-field col-span-1"
+                        />
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={editProduct.profitMargin}
+                          onChange={(e) => setEditProduct({ ...editProduct, profitMargin: e.target.value })}
+                          className="input-field col-span-1"
+                        />
+                        <input
+                          type="number"
+                          step="1"
+                          value={editProduct.quantity}
+                          onChange={(e) => setEditProduct({ ...editProduct, quantity: e.target.value })}
+                          className="input-field col-span-1"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <div className="col-span-2">{p.description}</div>
+                        <div className="col-span-1">{p.costPrice.toFixed(2)}</div>
+                        <div className="col-span-1">{p.profitMargin.toFixed(1)}</div>
+                        <div className="col-span-1">{p.quantity}</div>
+                      </>
+                    )}
+                    <div className="col-span-1 font-medium">
+                      {formatCurrency(p.salePrice)}
+                    </div>
+                    <div className="col-span-1 flex gap-2">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={handleSaveRow}
+                            className="btn-primary px-2 py-1 text-sm"
+                          >
+                            Salvar
+                          </button>
+                          <button
+                            onClick={handleCancelRow}
+                            className="btn-outline px-2 py-1 text-sm"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleEditRow(p.id, p.description, p.costPrice, p.profitMargin, p.quantity)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <p className="text-gray-500 text-sm italic">Nenhum produto encontrado.</p>
             )}
