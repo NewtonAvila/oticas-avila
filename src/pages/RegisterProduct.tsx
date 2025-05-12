@@ -143,100 +143,127 @@ const RegisterProduct: React.FC = () => {
               placeholder="Filtrar por descrição ou seq"
               value={filter}
               onChange={e => setFilter(e.target.value)}
-              className="input-field w-1/3 md:w-1/4 sm:w-full"
+              className="input-field w-full sm:w-1/2 md:w-1/3"
             />
           </div>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {Array.isArray(filtered) && filtered.length > 0 ? (
-              filtered.map(p => {
-                const isEditing = editProduct?.id === p.id;
-                return (
-                  <div
-                    key={p.id}
-                    className="border-b py-2"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-4 md:grid-cols-8 gap-2 items-center">
-                      <div className="text-xs text-gray-500 sm:col-span-1">{p.seq}</div>
-                      {isEditing && editProduct ? (
-                        <>
-                          <input
-                            value={editProduct.description}
-                            onChange={(e) => setEditProduct({ ...editProduct, description: e.target.value })}
-                            className="input-field col-span-2 sm:col-span-1"
-                          />
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editProduct.costPrice}
-                            onChange={(e) => setEditProduct({ ...editProduct, costPrice: e.target.value })}
-                            className="input-field col-span-1 sm:col-span-1"
-                          />
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={editProduct.profitMargin}
-                            onChange={(e) => setEditProduct({ ...editProduct, profitMargin: e.target.value })}
-                            className="input-field col-span-1 sm:col-span-1"
-                          />
-                          <input
-                            type="number"
-                            step="1"
-                            value={editProduct.quantity}
-                            onChange={(e) => setEditProduct({ ...editProduct, quantity: e.target.value })}
-                            className="input-field col-span-1 sm:col-span-1"
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <div className="col-span-2 sm:col-span-1">{p.description}</div>
-                          <div className="col-span-1 sm:col-span-1">{p.costPrice.toFixed(2)}</div>
-                          <div className="col-span-1 sm:col-span-1">{p.profitMargin.toFixed(1)}</div>
-                          <div className="col-span-1 sm:col-span-1">{p.quantity}</div>
-                        </>
-                      )}
-                      <div className="font-medium sm:col-span-1">
-                        {formatCurrency(p.salePrice)}
-                      </div>
-                      <div className="flex justify-end gap-2 sm:col-span-1">
-                        {isEditing ? (
-                          <>
-                            <button
-                              onClick={handleSaveRow}
-                              className="btn-primary px-2 py-1 text-sm"
-                            >
-                              Salvar
-                            </button>
-                            <button
-                              onClick={handleCancelRow}
-                              className="btn-outline px-2 py-1 text-sm"
-                            >
-                              Cancelar
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleEditRow(p.id, p.description, p.costPrice, p.profitMargin, p.quantity)}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(p.id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <Trash size={16} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-gray-500 text-sm italic">Nenhum produto encontrado.</p>
-            )}
+          <div className="overflow-x-auto max-h-96">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-200 dark:bg-gray-700">
+                  <th className="p-2 min-w-[60px] whitespace-nowrap">Seq</th>
+                  <th className="p-2 min-w-[150px] whitespace-nowrap">Descrição</th>
+                  <th className="p-2 min-w-[120px] whitespace-nowrap">Preço de Custo (R$)</th>
+                  <th className="p-2 min-w-[100px] whitespace-nowrap">% Lucro</th>
+                  <th className="p-2 min-w-[100px] whitespace-nowrap">Quantidade</th>
+                  <th className="p-2 min-w-[120px] whitespace-nowrap">Preço de Venda (R$)</th>
+                  <th className="p-2 min-w-[100px] whitespace-nowrap">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.isArray(filtered) && filtered.length > 0 ? (
+                  filtered.map(p => {
+                    const isEditing = editProduct?.id === p.id;
+                    return (
+                      <tr key={p.id} className="border-t dark:border-gray-600">
+                        <td className="p-2 text-xs text-gray-500">{p.seq}</td>
+                        <td className="p-2">
+                          {isEditing && editProduct ? (
+                            <input
+                              value={editProduct.description}
+                              onChange={(e) => setEditProduct({ ...editProduct, description: e.target.value })}
+                              className="input-field w-full"
+                            />
+                          ) : (
+                            p.description
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {isEditing && editProduct ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editProduct.costPrice}
+                              onChange={(e) => setEditProduct({ ...editProduct, costPrice: e.target.value })}
+                              className="input-field w-full"
+                            />
+                          ) : (
+                            p.costPrice.toFixed(2)
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {isEditing && editProduct ? (
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={editProduct.profitMargin}
+                              onChange={(e) => setEditProduct({ ...editProduct, profitMargin: e.target.value })}
+                              className="input-field w-full"
+                            />
+                          ) : (
+                            p.profitMargin.toFixed(1)
+                          )}
+                        </td>
+                        <td className="p-2">
+                          {isEditing && editProduct ? (
+                            <input
+                              type="number"
+                              step="1"
+                              value={editProduct.quantity}
+                              onChange={(e) => setEditProduct({ ...editProduct, quantity: e.target.value })}
+                              className="input-field w-full"
+                            />
+                          ) : (
+                            p.quantity
+                          )}
+                        </td>
+                        <td className="p-2 font-medium">
+                          {formatCurrency(p.salePrice)}
+                        </td>
+                        <td className="p-2 flex gap-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                onClick={handleSaveRow}
+                                className="btn-primary px-2 py-1 text-sm"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={handleCancelRow}
+                                className="btn-outline px-2 py-1 text-sm"
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleEditRow(p.id, p.description, p.costPrice, p.profitMargin, p.quantity)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(p.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash size={16} />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="p-2 text-gray-500 text-sm italic text-center">
+                      Nenhum produto encontrado.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
