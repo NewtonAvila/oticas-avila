@@ -83,7 +83,7 @@ export type Product = {
 export type CashMovement = {
   id: string;
   type: 'entrada' | 'saida';
-  amount: number; // in reais
+  amount: number;
   description: string;
   date: Timestamp | null;
   userID: string;
@@ -137,6 +137,8 @@ type DataContextType = {
     userId?: string;
     includeCanceled?: boolean;
   }) => Promise<Sale[]>;
+
+  cashMovements: CashMovement[];
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -150,6 +152,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [debts, setDebts] = useState<Debt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [cashMovements, setCashMovements] = useState<CashMovement[]>([]);
 
   useEffect(() => {
     const unsubInv = onSnapshot(collection(db, 'investments'), snap =>
@@ -170,6 +173,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, (error) => {
       console.error('Error in onSnapshot for vendas:', error);
     });
+    const unsubCashMovements = onSnapshot(collection(db, 'cashMovements'), snap => {
+      const updatedMovements = snap.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<CashMovement, 'id'>)
+      }));
+      updatedMovements.sort((a, b) => {
+        const ta = a.date ? a.date.toMillis() : 0;
+        const tb = b.date ? b.date.toMillis() : 0;
+        return tb - ta;
+      });
+      setCashMovements(updatedMovements);
+    }, (error) => {
+      console.error('Error in onSnapshot for cashMovements:', error);
+    });
 
     return () => {
       unsubInv();
@@ -177,6 +194,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       unsubDebt();
       unsubProd();
       unsubSales();
+      unsubCashMovements();
     };
   }, []);
 
@@ -518,7 +536,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       tx.update(prodRef, { quantity: newQty });
     });
 
-    // Add cash movement for the sale using newSeq
     await addCashMovement(
       'entrada',
       s.totalPrice,
@@ -633,7 +650,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         sales,
         addSale,
         undoSale,
-        getSales
+        getSales,
+
+        cashMovements
       }}
     >
       {children}

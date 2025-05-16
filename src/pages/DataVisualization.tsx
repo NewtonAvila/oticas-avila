@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import React, { useEffect, useState, useRef } from 'react';
+import { Pie, Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale, Title } from 'chart.js';
 import Header from '../components/Header';
 import { useData } from '../contexts/DataContext';
-import { Users, TrendingUp, HelpCircle } from 'lucide-react';
+import { Users, TrendingUp, HelpCircle, Wallet, Calendar } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
-// Registrando os componentes do ChartJS
-ChartJS.register(ArcElement, Tooltip, Legend);
+// Register ChartJS components
+ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale, Title);
 
-// Gera cores automáticas para o gráfico
+// Generate colors for the pie chart
 const generateColor = (index: number) => {
   const colors = [
     'rgba(54, 162, 235, 0.8)',
@@ -24,8 +24,8 @@ const generateColor = (index: number) => {
 };
 
 const DataVisualization: React.FC = () => {
-  const { getAllUsersInvestmentData, investments } = useData();
-  const [chartData, setChartData] = useState({
+  const { getAllUsersInvestmentData, investments, cashMovements, debts } = useData();
+  const [pieChartData, setPieChartData] = useState({
     labels: [] as string[],
     datasets: [{
       label: 'Investimentos',
@@ -36,6 +36,14 @@ const DataVisualization: React.FC = () => {
     }]
   });
 
+  const [barChartData, setBarChartData] = useState({
+    labels: [] as string[],
+    datasets: [] as any[]
+  });
+  const [groupedBarLabels, setGroupedBarLabels] = useState<{ label: string; year: number; isCurrent: boolean }[]>([]);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Pie chart for investments
   useEffect(() => {
     const investmentData = getAllUsersInvestmentData();
 
@@ -44,7 +52,7 @@ const DataVisualization: React.FC = () => {
     const backgroundColors = investmentData.map((_, index) => generateColor(index));
     const borderColors = backgroundColors.map(color => color.replace('0.8', '1'));
 
-    setChartData({
+    setPieChartData({
       labels,
       datasets: [{
         label: 'Valor investido',
@@ -56,7 +64,7 @@ const DataVisualization: React.FC = () => {
     });
   }, [investments, getAllUsersInvestmentData]);
 
-  const chartOptions = {
+  const pieChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -77,68 +85,248 @@ const DataVisualization: React.FC = () => {
     }
   };
 
+  // Bar chart for cash and debts
+  useEffect(() => {
+    if (!cashMovements.length && !debts.length) {
+      setBarChartData({
+        labels: [],
+        datasets: []
+      });
+      setGroupedBarLabels([]);
+      return;
+    }
+
+    // Find the earliest date from cashMovements and debts
+    const allDates = [
+      ...cashMovements.filter(m => m.date).map(m => m.date!.toDate()),
+      ...debts.map(d => new Date(d.dueDate))
+    ];
+    if (!allDates.length) return;
+
+    const earliestDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+    const currentDate = new Date();
+
+    // Generate all months from the earliest date to the current date
+    const months: { year: number; month: number }[] = [];
+    let current = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+    while (current <= currentDate) {
+      months.push({
+        year: current.getFullYear(),
+        month: current.getMonth()
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    // Calculate cash balance and debts for each month
+    const cashData: number[] = [];
+    const debtData: number[] = [];
+    const labels: string[] = [];
+    const monthNames = [
+      'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
+    ];
+
+    months.forEach(({ year, month }) => {
+      // Calculate cash balance up to the end of the month
+      const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+      const movementsUpToMonth = cashMovements.filter(m => m.date && m.date.toDate() <= endOfMonth);
+      const totalEntries = movementsUpToMonth
+        .filter(m => m.type === 'entrada')
+        .reduce((sum, m) => sum + m.amount, 0);
+      const totalExits = movementsUpToMonth
+        .filter(m => m.type === 'saida')
+        .reduce((sum, m) => sum + m.amount, 0);
+      const balance = totalEntries - totalExits;
+
+      // Calculate debts for the month
+      const monthDebts = debts.filter(d => {
+        const dueDate = new Date(d.dueDate);
+        return dueDate.getFullYear() === year && dueDate.getMonth() === month;
+      });
+      const totalDebt = monthDebts.reduce((sum, d) => sum + d.amount, 0);
+
+      cashData.push(balance);
+      debtData.push(totalDebt);
+      labels.push(monthNames[month]);
+    });
+
+    // Group labels by year for custom display
+    const newGroupedLabels = months.map(({ year, month }) => ({
+      label: monthNames[month],
+      year,
+      isCurrent: year === currentDate.getFullYear() && month === currentDate.getMonth()
+    }));
+
+    setBarChartData({
+      labels,
+      datasets: [
+        {
+          label: 'Caixa',
+          data: cashData,
+          backgroundColor: newGroupedLabels.map(item =>
+            item.isCurrent ? 'rgba(54, 162, 235, 1)' : 'rgba(54, 162, 235, 0.8)'
+          ),
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1,
+          barThickness: 20,
+          borderRadius: 5,
+        },
+        {
+          label: 'Dívidas',
+          data: debtData,
+          backgroundColor: newGroupedLabels.map(item =>
+            item.isCurrent ? 'rgba(255, 99, 132, 1)' : 'rgba(255, 99, 132, 0.8)'
+          ),
+          borderColor: 'rgba(255, 99, 132, 1)',
+          borderWidth: 1,
+          barThickness: 20,
+          borderRadius: 5,
+        }
+      ]
+    });
+
+    setGroupedBarLabels(newGroupedLabels);
+
+    // Scroll to the current month
+    if (chartContainerRef.current) {
+      const currentMonthIndex = newGroupedLabels.findIndex(item => item.isCurrent);
+      if (currentMonthIndex !== -1) {
+        const barWidth = 60;
+        const scrollPosition = currentMonthIndex * barWidth;
+        chartContainerRef.current.scrollLeft = scrollPosition;
+      }
+    }
+  }, [cashMovements, debts]);
+
+  const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            const label = context.dataset.label || '';
+            const value = context.raw || 0;
+            return `${label}: ${formatCurrency(value)}`;
+          },
+          title: function(context: any) {
+            const index = context[0].dataIndex;
+            const month = barChartData.labels[index];
+            const year = groupedBarLabels[index].year;
+            return `${month} ${year}`;
+          }
+        }
+      },
+      title: {
+        display: false,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false
+        },
+        ticks: {
+          autoSkip: false,
+          maxRotation: 0,
+          minRotation: 0
+        }
+      },
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Valor (R$)'
+        },
+        ticks: {
+          callback: function(value: any) {
+            return formatCurrency(value);
+          }
+        }
+      }
+    }
+  };
+
+  const groupByYear = groupedBarLabels.reduce((acc, item, index) => {
+    if (!acc[item.year]) acc[item.year] = [];
+    acc[item.year].push({ label: item.label, index, isCurrent: item.isCurrent });
+    return acc;
+  }, {} as Record<number, { label: string; index: number; isCurrent: boolean }[]>);
+
+  const scrollToCurrentMonth = () => {
+    if (chartContainerRef.current) {
+      const currentMonthIndex = groupedBarLabels.findIndex(item => item.isCurrent);
+      if (currentMonthIndex !== -1) {
+        const barWidth = 60;
+        const scrollPosition = currentMonthIndex * barWidth;
+        chartContainerRef.current.scrollTo({ left: scrollPosition, behavior: 'smooth' });
+      }
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-gray-900 dark:text-white">
       <Header title="Visualização de Dados" showBackButton />
 
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
           <div className="grid gap-8 md:grid-cols-3">
             
-            {/* Gráfico */}
+            {/* Pie Chart */}
             <div className="md:col-span-2">
-              <div className="card bg-white">
-                <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+              <div className="card bg-white dark:bg-gray-800">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-6 flex items-center">
                   <Users size={20} className="mr-2" />
                   Distribuição de Investimentos
                 </h2>
 
-                {chartData.labels.length > 0 ? (
+                {pieChartData.labels.length > 0 ? (
                   <div className="h-80">
-                    <Pie data={chartData} options={chartOptions} />
+                    <Pie data={pieChartData} options={pieChartOptions} />
                   </div>
                 ) : (
                   <div className="h-80 flex items-center justify-center">
-                    <p className="text-gray-500">Nenhum dado de investimento encontrado.</p>
+                    <p className="text-gray-500 dark:text-gray-400">Nenhum dado de investimento encontrado.</p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Estatísticas rápidas */}
+            {/* Statistics and Info */}
             <div className="md:col-span-1">
-
-              {/* Investimento por usuário */}
-              <div className="card bg-white mb-6">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <div className="card bg-white dark:bg-gray-800 mb-6">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center">
                   <TrendingUp size={18} className="mr-2" />
                   Estatísticas
                 </h2>
 
-                {chartData.labels.length > 0 ? (
+                {pieChartData.labels.length > 0 ? (
                   <div className="space-y-4">
-                    {chartData.labels.map((label, index) => {
-                      const amount = chartData.datasets[0].data[index];
-                      const total = chartData.datasets[0].data.reduce((a, b) => a + b, 0);
+                    {pieChartData.labels.map((label, index) => {
+                      const amount = pieChartData.datasets[0].data[index];
+                      const total = pieChartData.datasets[0].data.reduce((a, b) => a + b, 0);
                       const percentage = total > 0 ? (amount / total) * 100 : 0;
 
                       return (
                         <div key={index} className="flex items-center">
                           <div
                             className="w-3 h-3 rounded-full mr-2"
-                            style={{ backgroundColor: chartData.datasets[0].backgroundColor[index] }}
+                            style={{ backgroundColor: pieChartData.datasets[0].backgroundColor[index] }}
                           ></div>
                           <div className="flex-1">
                             <div className="flex justify-between">
                               <p className="text-sm font-medium">{label}</p>
                               <p className="text-sm font-medium">{formatCurrency(amount)}</p>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1">
                               <div
                                 className="h-1.5 rounded-full"
                                 style={{
                                   width: `${percentage}%`,
-                                  backgroundColor: chartData.datasets[0].backgroundColor[index]
+                                  backgroundColor: pieChartData.datasets[0].backgroundColor[index]
                                 }}
                               ></div>
                             </div>
@@ -147,34 +335,124 @@ const DataVisualization: React.FC = () => {
                       );
                     })}
 
-                    <div className="pt-2 border-t">
+                    <div className="pt-2 border-t dark:border-gray-700">
                       <div className="flex justify-between font-medium">
                         <p>Total</p>
-                        <p>{formatCurrency(chartData.datasets[0].data.reduce((a, b) => a + b, 0))}</p>
+                        <p>{formatCurrency(pieChartData.datasets[0].data.reduce((a, b) => a + b, 0))}</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">Nenhum investimento registrado.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm italic">Nenhum investimento registrado.</p>
                 )}
               </div>
 
-              {/* Explicação do gráfico */}
-              <div className="card bg-white">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <div className="card bg-white dark:bg-gray-800">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center">
                   <HelpCircle size={18} className="mr-2" />
                   Sobre o Gráfico
                 </h2>
 
-                <div className="text-gray-600 text-sm space-y-3">
+                <div className="text-gray-600 dark:text-gray-400 text-sm space-y-3">
                   <p>O gráfico de pizza representa a participação de cada usuário no total investido.</p>
                   <p>Ele é atualizado automaticamente conforme novos investimentos são adicionados.</p>
                   <p>Passe o mouse sobre as fatias para ver detalhes!</p>
                 </div>
               </div>
-
             </div>
 
+            {/* Bar Chart */}
+            <div className="md:col-span-3">
+              <div className="card bg-white dark:bg-gray-800">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+                    <Wallet size={20} className="mr-2" />
+                    Caixa vs Dívidas por Mês
+                  </h2>
+                  <button
+                    onClick={scrollToCurrentMonth}
+                    className="btn-primary text-sm px-3 py-1 flex items-center"
+                  >
+                    <Calendar size={16} className="mr-1" />
+                    Ir para o Mês Atual
+                  </button>
+                </div>
+
+                {barChartData.labels.length > 0 ? (
+                  <div className="relative">
+                    <div
+                      ref={chartContainerRef}
+                      className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800"
+                      style={{ maxWidth: '100%' }}
+                    >
+                      <div style={{ width: `${barChartData.labels.length * 60}px`, minWidth: '100%' }}>
+                        <div className="flex">
+                          {Object.entries(groupByYear).map(([year, yearMonths]) => (
+                            <div key={year} className="flex-1">
+                              <div className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                {year}
+                              </div>
+                              <div className="relative h-80">
+                                <Bar
+                                  data={{
+                                    labels: yearMonths.map(m => m.label),
+                                    datasets: barChartData.datasets.map(dataset => ({
+                                      ...dataset,
+                                      data: dataset.data.slice(
+                                        yearMonths[0].index,
+                                        yearMonths[yearMonths.length - 1].index + 1
+                                      )
+                                    }))
+                                  }}
+                                  options={{
+                                    ...barChartOptions,
+                                    plugins: {
+                                      ...barChartOptions.plugins,
+                                      tooltip: {
+                                        ...barChartOptions.plugins.tooltip,
+                                        callbacks: {
+                                          ...barChartOptions.plugins.tooltip.callbacks,
+                                          title: function(context: any) {
+                                            const index = context[0].dataIndex;
+                                            return `${yearMonths[index].label} ${year}`;
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-80 flex items-center justify-center">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      Nenhum dado de caixa ou dívidas encontrado.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bar Chart Explanation */}
+            <div className="md:col-span-3">
+              <div className="card bg-white dark:bg-gray-800">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center">
+                  <HelpCircle size={18} className="mr-2" />
+                  Sobre o Gráfico de Caixa vs Dívidas
+                </h2>
+                <div className="text-gray-600 dark:text-gray-400 text-sm space-y-3">
+                  <p>Este gráfico mostra o saldo de caixa (azul) e as dívidas (vermelho) para cada mês.</p>
+                  <p>O saldo de caixa é calculado com base nas movimentações até o final de cada mês.</p>
+                  <p>As dívidas incluem todas as registradas para o mês correspondente.</p>
+                  <p>Use a barra de rolagem para navegar pelos meses e o botão para ir ao mês atual.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>

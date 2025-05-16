@@ -305,18 +305,22 @@ const CashControl: React.FC = () => {
                         >
                           {formatCurrency(m.amount)}
                         </p>
-                        <button
-                          onClick={() => handleEditRow(m.id, m.description, m.amount)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(m.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash size={16} />
-                        </button>
+                        {m.source === 'manual' && (
+                          <>
+                            <button
+                              onClick={() => handleEditRow(m.id, m.description, m.amount)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(m.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <Trash size={16} />
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                     {isEditing && (

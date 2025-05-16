@@ -26,32 +26,11 @@ const Dashboard: React.FC = () => {
 
   const regularCards = [
     {
-      title: 'Registrar Venda',
-      description: 'Registrar vendas e estornar',
-      path: '/register-sale',
-      icon: <span className="text-2xl">🛒</span>,
-      color: 'bg-orange-500'
-    },
-    {
-      title: 'Registrar Investimento',
-      description: 'Adicionar novos investimentos',
-      path: '/investments',
-      icon: <span className="text-2xl">🐷</span>,
-      color: 'bg-blue-500'
-    },
-    {
       title: 'Controle de Horas',
       description: 'Registrar horas trabalhadas',
       path: '/time-tracker',
       icon: <span className="text-2xl">🕒</span>,
       color: 'bg-teal-500'
-    },
-    {
-      title: 'Registrar Dívida',
-      description: 'Cadastrar novos gastos ou contas mensais',
-      path: '/register-debt',
-      icon: <span className="text-2xl">💸</span>,
-      color: 'bg-yellow-500'
     },
     {
       title: 'Cadastro de Produtos',
@@ -61,11 +40,25 @@ const Dashboard: React.FC = () => {
       color: 'bg-green-500'
     },
     {
-      title: 'Visualizar Dados',
-      description: 'Gráficos e estatísticas',
-      path: '/data',
-      icon: <span className="text-2xl">📊</span>,
-      color: 'bg-purple-500'
+      title: 'Registrar Venda',
+      description: 'Registrar vendas e estornar',
+      path: '/register-sale',
+      icon: <span className="text-2xl">🛒</span>,
+      color: 'bg-orange-500'
+    },
+    {
+      title: 'Registrar Dívida',
+      description: 'Cadastrar novos gastos ou contas mensais',
+      path: '/register-debt',
+      icon: <span className="text-2xl">💸</span>,
+      color: 'bg-yellow-500'
+    },
+    {
+      title: 'Registrar Investimento',
+      description: 'Adicionar novos investimentos',
+      path: '/investments',
+      icon: <span className="text-2xl">🐷</span>,
+      color: 'bg-blue-500'
     },
     {
       title: 'Caixa',
@@ -73,6 +66,13 @@ const Dashboard: React.FC = () => {
       path: '/cash-control',
       icon: <span className="text-2xl">💰</span>,
       color: 'bg-indigo-500'
+    },
+    {
+      title: 'Visualizar Dados',
+      description: 'Gráficos e estatísticas',
+      path: '/data',
+      icon: <span className="text-2xl">📊</span>,
+      color: 'bg-purple-500'
     }
   ];
 
@@ -95,7 +95,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Indicadores (só para não-admin) */}
-        {!user?.isAdmin && (
+        {/*!user?.isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
               <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Do total investido</p>
             </div>
           </div>
-        )}
+        )*/}
 
         {/* Cards de navegação rápida */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
