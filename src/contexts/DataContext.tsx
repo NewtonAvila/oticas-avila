@@ -177,7 +177,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         userId: user.id,
         userName: user.username,
         date: new Date().toISOString(),
-        sessionId
+        ...(sessionId && { sessionId }) // Include sessionId only if it’s defined
       });
       console.log('Investimento adicionado com sucesso:', { description, amount, sessionId });
     } catch (error) {
@@ -254,15 +254,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const hours =
           (new Date(endTime).getTime() -
             new Date(sess.startTime).getTime() -
-            sess.pausedTime) /
+            sess.pausedTime * 1000) /
           3600000;
+        const amount = hours * sess.hourlyRate;
         await addInvestment(
           `Investimento de Tempo (${hours.toFixed(2)}h)`,
-          hours * sess.hourlyRate,
+          amount,
           true,
           sessionId
         );
-        console.log('Investimento de tempo criado:', { hours: hours.toFixed(2), amount: (hours * sess.hourlyRate).toFixed(2), sessionId });
+        console.log('Investimento de tempo criado:', { hours: hours.toFixed(2), amount: amount.toFixed(2), sessionId });
       }
     } catch (error) {
       console.error('Erro ao parar sessão ou criar investimento:', error);
@@ -278,18 +279,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateTimeSession = async (id: string, data: Partial<TimeSession>) => {
     if (!user) return;
     try {
-      // Obter a sessão atual antes da atualização
       const sessionBeforeUpdate = timeSessions.find(s => s.id === id);
       if (!sessionBeforeUpdate) {
         console.error('Sessão não encontrada:', { sessionId: id });
         return;
       }
 
-      // Atualizar a sessão no Firestore
       await updateDoc(doc(db, 'timeSessions', id), data);
       console.log('Sessão atualizada:', { sessionId: id, updatedData: data });
 
-      // Verificar se a sessão está completa e se o tipo (isPaid) mudou
       const isPaidAfterUpdate = data.isPaid !== undefined ? data.isPaid : sessionBeforeUpdate.isPaid;
       const endTime = data.endTime !== undefined ? data.endTime : sessionBeforeUpdate.endTime;
       const startTime = data.startTime !== undefined ? data.startTime : sessionBeforeUpdate.startTime;
@@ -298,12 +296,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (endTime) {
         const hours =
-          Math.round(((new Date(endTime).getTime() - new Date(startTime).getTime() - pausedTime) / 3600000) * 100) / 100;
-        const amount = Math.round(hours * hourlyRate * 100) / 100;
+          (new Date(endTime).getTime() -
+            new Date(startTime).getTime() -
+            pausedTime * 1000) /
+          3600000;
+        const amount = hours * hourlyRate;
 
         const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
 
-        // Caso 1: Mudou de "Pago" para "Investido"
         if (sessionBeforeUpdate.isPaid && !isPaidAfterUpdate) {
           await addInvestment(
             `Investimento de Tempo (${hours.toFixed(2)}h)`,
@@ -312,14 +312,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             id
           );
           console.log('Novo investimento criado:', { sessionId: id, amount: amount.toFixed(2) });
-        }
-        // Caso 2: Mudou de "Investido" para "Pago"
-        else if (!sessionBeforeUpdate.isPaid && isPaidAfterUpdate && investment) {
+        } else if (!sessionBeforeUpdate.isPaid && isPaidAfterUpdate && investment) {
           await deleteInvestment(investment.id);
           console.log('Investimento removido:', { investmentId: investment.id });
-        }
-        // Caso 3: Permanece como "Investido", apenas atualizar o investimento existente
-        else if (!isPaidAfterUpdate && investment) {
+        } else if (!isPaidAfterUpdate && investment) {
           await updateInvestment(investment.id, {
             description: `Investimento de Tempo (${hours.toFixed(2)}h)`,
             amount: amount
@@ -335,7 +331,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteTimeSession = async (id: string) => {
     if (!user) return;
     try {
-      // Deletar o investimento associado, se existir
       const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
       if (investment) {
         await deleteInvestment(investment.id);

@@ -29,7 +29,6 @@ const InvestmentForm: React.FC = () => {
         .filter(inv => inv.userId === user.id)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5);
-
       setRecentInvestments(userInvestments);
     }
   }, [investments, user]);
@@ -40,7 +39,7 @@ const InvestmentForm: React.FC = () => {
     setFeedback({ message: '', isError: false });
 
     try {
-      const amountValue = parseFloat(amount);
+      const amountValue = parseFloat(amount.replace(',', '.')); // Handle Brazilian locale (e.g., "700,00" to 700.00)
 
       if (!description.trim()) {
         setFeedback({ message: 'Por favor, insira uma descrição.', isError: true });
@@ -70,7 +69,7 @@ const InvestmentForm: React.FC = () => {
 
   const handleSaveRow = () => {
     if (editInvestment) {
-      const amountValue = parseFloat(editInvestment.amount);
+      const amountValue = parseFloat(editInvestment.amount.replace(',', '.')); // Handle Brazilian locale
       if (!editInvestment.description.trim()) {
         alert('Por favor, insira uma descrição.');
         return;
@@ -102,11 +101,9 @@ const InvestmentForm: React.FC = () => {
       <Header title="Registrar Investimento" showBackButton />
       <main className="container mx-auto px-4 py-10">
         <div className="grid md:grid-cols-5 gap-10">
-          {/* Estatísticas */}
           <div className="md:col-span-2 space-y-6">
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">Seus Dados</h2>
-
               <div className="space-y-3">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Total Investido</p>
@@ -114,7 +111,6 @@ const InvestmentForm: React.FC = () => {
                     {formatCurrency(getTotalInvestment())}
                   </p>
                 </div>
-
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Sua Participação</p>
                   <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 relative">
@@ -129,10 +125,8 @@ const InvestmentForm: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="card">
               <h2 className="text-lg font-semibold mb-4">Seus Últimos Investimentos</h2>
-
               {recentInvestments.length > 0 ? (
                 <ul className="space-y-4">
                   {recentInvestments.map(inv => {
@@ -224,12 +218,9 @@ const InvestmentForm: React.FC = () => {
               )}
             </div>
           </div>
-
-          {/* Formulário */}
           <div className="md:col-span-3">
             <div className="card">
               <h2 className="text-xl font-bold mb-6">Novo Investimento</h2>
-
               {feedback.message && (
                 <div
                   className={`mb-6 px-4 py-3 rounded-md text-sm font-medium ${
@@ -241,7 +232,6 @@ const InvestmentForm: React.FC = () => {
                   {feedback.message}
                 </div>
               )}
-
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label htmlFor="description" className="label">
@@ -262,7 +252,6 @@ const InvestmentForm: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <div>
                   <label htmlFor="amount" className="label">
                     Valor (R$)
@@ -284,7 +273,6 @@ const InvestmentForm: React.FC = () => {
                     />
                   </div>
                 </div>
-
                 <button
                   type="submit"
                   disabled={isSubmitting}

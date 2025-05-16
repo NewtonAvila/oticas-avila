@@ -39,7 +39,7 @@ const TimeTracker: React.FC = () => {
       setStartTime(currentSession.startTime ? new Date(currentSession.startTime) : null);
       setPausedTime(currentSession.pausedTime || 0);
 
-      const elapsed = Math.floor((Date.now() - new Date(currentSession.startTime).getTime() - pausedTime) / 1000);
+      const elapsed = Math.floor((Date.now() - new Date(currentSession.startTime).getTime() - (currentSession.pausedTime || 0) * 1000) / 1000);
       setElapsedTime(elapsed);
     }
   }, [getCurrentTimeSession]);
@@ -50,13 +50,13 @@ const TimeTracker: React.FC = () => {
     if (timerState === 'running' && startTime) {
       interval = setInterval(() => {
         const now = new Date();
-        const baseTime = startTime.getTime() + pausedTime;
+        const baseTime = startTime.getTime() + pausedTime * 1000; // Convert pausedTime to milliseconds
         const newElapsed = Math.floor((now.getTime() - baseTime) / 1000);
         setElapsedTime(newElapsed);
 
-        const hours = Math.round((newElapsed / 3600) * 100) / 100;
+        const hours = newElapsed / 3600; // Convert seconds to hours
         const rate = parseFloat(hourlyRate) || 0;
-        const earnings = Math.round(hours * rate * 100) / 100;
+        const earnings = hours * rate;
         setEstimatedEarnings(earnings);
       }, 1000);
     }
@@ -80,7 +80,7 @@ const TimeTracker: React.FC = () => {
 
   const getTimePart = (isoString: string): string => {
     const date = new Date(isoString);
-    return date.toTimeString().slice(0, 5); // Ex.: "14:30" (formato 24h)
+    return date.toTimeString().slice(0, 5);
   };
 
   const handleStart = () => {
@@ -113,7 +113,7 @@ const TimeTracker: React.FC = () => {
   const handleResume = () => {
     if (timerState === 'paused' && pauseStart && startTime) {
       const pauseDuration = Math.floor((new Date().getTime() - pauseStart.getTime()) / 1000);
-      setPausedTime(pausedTime + pauseDuration);
+      setPausedTime(prev => prev + pauseDuration);
       setPauseStart(null);
       setTimerState('running');
     }
@@ -141,7 +141,7 @@ const TimeTracker: React.FC = () => {
     const startDate = new Date(startTime);
     if (isNaN(startDate.getTime())) return false;
 
-    if (!endTime) return true; // Se endTime for null, não há o que validar ainda
+    if (!endTime) return true;
 
     const endDate = new Date(endTime);
     if (isNaN(endDate.getTime())) return false;
@@ -157,14 +157,12 @@ const TimeTracker: React.FC = () => {
 
   const handleSaveRow = () => {
     if (editSessionRow) {
-      // Garantir que startTime seja uma data válida
       const startDate = new Date(editSessionRow.startTime);
       if (isNaN(startDate.getTime())) {
         alert('Data ou hora de início inválida. Por favor, corrija os valores.');
         return;
       }
 
-      // Garantir que endTime, se existir, seja uma data válida
       let endDate: Date | null = null;
       if (editSessionRow.endTime) {
         endDate = new Date(editSessionRow.endTime);
@@ -174,7 +172,6 @@ const TimeTracker: React.FC = () => {
         }
       }
 
-      // Validar que endTime é posterior a startTime
       if (endDate && endDate <= startDate) {
         alert('A hora de término deve ser posterior à hora de início.');
         return;
@@ -203,7 +200,6 @@ const TimeTracker: React.FC = () => {
     }
   };
 
-  // Ordenar timeSessions por startTime (mais recente primeiro)
   const sortedSessions = [...timeSessions].sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
 
   return (
@@ -211,8 +207,6 @@ const TimeTracker: React.FC = () => {
       <Header title="Controle de Horas" showBackButton />
       <main className="flex-1">
         <div className="container mx-auto px-4 py-10 max-w-4xl space-y-10">
-
-          {/* Sessão Atual */}
           <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
             <h2 className="text-gray-700 dark:text-gray-300 text-xl mb-4 font-semibold">Sessão Atual</h2>
             <div className="text-5xl font-bold text-blue-700 dark:text-blue-400 font-mono">
@@ -248,7 +242,6 @@ const TimeTracker: React.FC = () => {
             </div>
           </section>
 
-          {/* Formulário de Nova Sessão (exibido quando showNewSessionForm é true) */}
           {showNewSessionForm && (
             <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 space-y-6">
               <h2 className="text-xl font-semibold mb-4">Nova Sessão de Trabalho</h2>
@@ -307,7 +300,6 @@ const TimeTracker: React.FC = () => {
             </section>
           )}
 
-          {/* Configurações da Sessão (desativada enquanto não há sessão ativa) */}
           {timerState === 'idle' && !showNewSessionForm && (
             <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 space-y-6 opacity-50 pointer-events-none">
               <h2 className="text-xl font-semibold mb-4">Configurações da Sessão</h2>
@@ -366,7 +358,6 @@ const TimeTracker: React.FC = () => {
             </section>
           )}
 
-          {/* Lista de Sessões */}
           <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4">Histórico de Sessões</h2>
             <div className="overflow-x-auto">
@@ -386,9 +377,9 @@ const TimeTracker: React.FC = () => {
                   {sortedSessions.map((session) => {
                     const start = new Date(session.startTime);
                     const end = session.endTime ? new Date(session.endTime) : null;
-                    const duration = end ? Math.floor((end.getTime() - start.getTime() - (session.pausedTime || 0)) / 1000) : 0;
-                    const hours = Math.round((duration / 3600) * 100) / 100;
-                    const total = Math.round(hours * session.hourlyRate * 100) / 100;
+                    const duration = end ? Math.floor((end.getTime() - start.getTime() - (session.pausedTime || 0) * 1000) / 1000) : 0;
+                    const hours = duration / 3600;
+                    const total = hours * session.hourlyRate;
                     const isEditing = editSessionRow?.id === session.id;
 
                     return (
@@ -542,7 +533,6 @@ const TimeTracker: React.FC = () => {
             </div>
           </section>
 
-          {/* Instruções */}
           <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold mb-4">Como usar</h2>
             <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
