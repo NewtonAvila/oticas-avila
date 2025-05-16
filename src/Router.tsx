@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import AdminPanel from "./pages/AdminPanel";
 import AdminUserManager from "./pages/AdminUserManager";
+import CashControl from "./pages/CashControl";
 
 const AppRoutes: React.FC = () => {
   const { user } = useAuth();
@@ -36,7 +37,8 @@ const AppRoutes: React.FC = () => {
             <Route path="/data" element={<DataVisualization />} />
             <Route path="/register-debt" element={<RegisterDebt />} />
             <Route path="/register-product" element={<RegisterProduct />} />
-            <Route path="/register-sale" element={<RegisterSale />} /> {/* 🔹 Rota adicionada */}
+            <Route path="/register-sale" element={<RegisterSale />} />
+            <Route path="/cash-control" element={<CashControl />} /> {/* 🔹 Nova rota adicionada */}
 
             {/* Painel de admin */}
             {user.isAdmin && (

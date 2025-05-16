@@ -28,7 +28,7 @@ const Dashboard: React.FC = () => {
     {
       title: 'Registrar Venda',
       description: 'Registrar vendas e estornar',
-      path: '/register-sale',          // rota para a tela de vendas
+      path: '/register-sale',
       icon: <span className="text-2xl">🛒</span>,
       color: 'bg-orange-500'
     },
@@ -66,6 +66,13 @@ const Dashboard: React.FC = () => {
       path: '/data',
       icon: <span className="text-2xl">📊</span>,
       color: 'bg-purple-500'
+    },
+    {
+      title: 'Caixa',
+      description: 'Ajustar saldo e controlar movimentações',
+      path: '/cash-control',
+      icon: <span className="text-2xl">💰</span>,
+      color: 'bg-indigo-500'
     }
   ];
 
@@ -88,7 +95,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Indicadores (só para não-admin) */}
-        {/*!user?.isAdmin && (
+        {!user?.isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
               <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
@@ -107,7 +114,7 @@ const Dashboard: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Do total investido</p>
             </div>
           </div>
-        )*/}
+        )}
 
         {/* Cards de navegação rápida */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">

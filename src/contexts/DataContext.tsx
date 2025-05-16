@@ -10,7 +10,9 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
-  DocumentReference
+  DocumentReference,
+  serverTimestamp,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
@@ -76,6 +78,17 @@ export type Product = {
   createdBy: string;
   updatedAt?: string;
   updatedBy?: string;
+};
+
+export type CashMovement = {
+  id: string;
+  type: 'entrada' | 'saida';
+  amount: number; // in reais
+  description: string;
+  date: Timestamp | null;
+  userID: string;
+  userName: string;
+  source: 'manual' | 'sale' | 'debt_payment';
 };
 
 type DataContextType = {
@@ -177,7 +190,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         userId: user.id,
         userName: user.username,
         date: new Date().toISOString(),
-        ...(sessionId && { sessionId }) // Include sessionId only if it’s defined
+        ...(sessionId && { sessionId })
       });
       console.log('Investimento adicionado com sucesso:', { description, amount, sessionId });
     } catch (error) {
@@ -354,11 +367,53 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteDebt = (id: string) =>
     deleteDoc(doc(db, 'debts', id));
 
-  const markDebtAsPaid = (id: string) =>
-    updateDoc(doc(db, 'debts', id), { paid: true });
+  const addCashMovement = async (
+    type: 'entrada' | 'saida',
+    amount: number,
+    description: string,
+    source: 'manual' | 'sale' | 'debt_payment'
+  ) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'cashMovements'), {
+        type,
+        amount,
+        description,
+        date: serverTimestamp(),
+        userID: user.id,
+        userName: user.username || 'Usuário',
+        source
+      });
+      console.log('Movimento de caixa adicionado:', { type, amount, description, source });
+    } catch (error) {
+      console.error('Erro ao adicionar movimento de caixa:', error);
+      throw error;
+    }
+  };
 
-  const markDebtAsUnpaid = (id: string) =>
-    updateDoc(doc(db, 'debts', id), { paid: false });
+  const markDebtAsPaid = async (id: string) => {
+    const debt = debts.find(d => d.id === id);
+    if (!debt || debt.paid) return;
+    await updateDoc(doc(db, 'debts', id), { paid: true });
+    await addCashMovement(
+      'saida',
+      debt.amount,
+      `Pagamento de dívida: ${debt.description}`,
+      'debt_payment'
+    );
+  };
+
+  const markDebtAsUnpaid = async (id: string) => {
+    const debt = debts.find(d => d.id === id);
+    if (!debt || !debt.paid) return;
+    await updateDoc(doc(db, 'debts', id), { paid: false });
+    await addCashMovement(
+      'entrada',
+      debt.amount,
+      `Reversão de pagamento de dívida: ${debt.description}`,
+      'debt_payment'
+    );
+  };
 
   const addProduct = async (
     p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
@@ -429,6 +484,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     s: Omit<Sale, 'id' | 'seq' | 'soldAt' | 'soldBy' | 'canceled'>
   ) => {
     if (!user) return;
+    let newSeq: number;
     await runTransaction(db, async tx => {
       const counterRef = doc(db, 'counters', 'vendas');
       const counterSnap = await tx.get(counterRef);
@@ -438,7 +494,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const prodSnap = await tx.get(prodRef);
       const curQty: number = (prodSnap.exists() && (prodSnap.data() as any).quantity) || 0;
 
-      const newSeq = lastSeq + 1;
+      newSeq = lastSeq + 1;
       tx.set(counterRef, { lastSeq: newSeq }, { merge: true });
 
       const now = new Date().toISOString();
@@ -461,6 +517,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const newQty = curQty - s.quantity;
       tx.update(prodRef, { quantity: newQty });
     });
+
+    // Add cash movement for the sale using newSeq
+    await addCashMovement(
+      'entrada',
+      s.totalPrice,
+      `Venda: ${s.description} (Seq: ${newSeq!})`,
+      'sale'
+    );
   };
 
   const undoSale = async (id: string) => {
@@ -498,6 +562,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
       });
+
+      const sale = sales.find(s => s.id === id);
+      if (sale) {
+        await addCashMovement(
+          'saida',
+          sale.totalPrice,
+          `Reversão de venda: ${sale.description} (Seq: ${sale.seq})`,
+          'sale'
+        );
+      }
     } catch (error) {
       throw new Error(`Failed to delete sale: ${(error as any).message}`);
     }
