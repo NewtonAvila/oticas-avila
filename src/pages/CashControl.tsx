@@ -1,4 +1,3 @@
-// src/pages/CashControl.tsx
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { useAuth } from '../contexts/AuthContext';
@@ -81,12 +80,8 @@ const CashControl: React.FC = () => {
   const handleAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustmentAmount || !description) return;
-    const rawValue = adjustmentAmount.replace(/[^0-9.,]/g, '').replace(',', '.');
-    const valor = parseFloat(rawValue);
-    console.log('Valor bruto (rawValue):', rawValue);
-    console.log('Valor digitado (parseFloat):', valor);
+    const valor = parseFloat(adjustmentAmount);
     if (isNaN(valor) || valor <= 0) {
-      console.log('Valor inválido:', valor);
       setError('O valor deve ser maior que 0.');
       return;
     }
@@ -95,14 +90,13 @@ const CashControl: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      console.log('Valor em reais:', valor);
       await addDoc(collection(db, 'cashMovements'), {
         type: adjustmentType,
         amount: valor,
         description,
         date: serverTimestamp(),
         userID: user.id,
-        userName: user.firstName || 'Usuário',
+        userName: user.username || 'Usuário',
         source: 'manual'
       });
       setAdjustmentAmount('');
@@ -122,13 +116,13 @@ const CashControl: React.FC = () => {
 
   const handleSaveRow = async () => {
     if (editMovement) {
-      const amountValue = parseFloat(editMovement.amount.replace(',', '.'));
+      const amountValue = parseFloat(editMovement.amount);
       if (!editMovement.description.trim()) {
         alert('Por favor, insira uma descrição.');
         return;
       }
       if (isNaN(amountValue) || amountValue <= 0) {
-        alert('Insira um valor válido.');
+        alert('Insira um valor válido maior que 0.');
         return;
       }
       try {
@@ -207,12 +201,13 @@ const CashControl: React.FC = () => {
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
                 value={adjustmentAmount}
                 onChange={e =>
                   setAdjustmentAmount(e.target.value)
                 }
                 className="input-field"
-                placeholder="Ex.: 2500 ou 1490,25"
+                placeholder="Ex.: 2500.00"
                 required
               />
             </div>
@@ -280,7 +275,7 @@ const CashControl: React.FC = () => {
                             setEditMovement({ ...editMovement, amount: e.target.value })
                           }
                           className="input-field w-24"
-                          placeholder="0,00"
+                          placeholder="0.00"
                         />
                       </>
                     ) : (

@@ -1,18 +1,33 @@
-// src/pages/Dashboard.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
+import { formatCurrency } from '../utils/format';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { getTotalInvestment, getUserInvestmentPercentage, getUserContributionAmount } = useData();
+  const { getTotalInvestment, getUserInvestmentPercentage, getUserContributionAmount, cashMovements, debts } = useData();
   const { user } = useAuth();
 
   const total = getTotalInvestment();
   const percentage = getUserInvestmentPercentage();
   const userContribution = getUserContributionAmount();
+
+  // Calcula o saldo em caixa
+  const totalEntries = cashMovements
+    .filter(m => m.type === 'entrada')
+    .reduce((sum, m) => sum + m.amount, 0);
+  const totalExits = cashMovements
+    .filter(m => m.type === 'saida')
+    .reduce((sum, m) => sum + m.amount, 0);
+  const balance = totalEntries - totalExits;
+
+  // Encontra a próxima dívida a vencer (não paga e com data futura ou atual)
+  const now = new Date('2025-05-18T14:03:00+03:00'); // Data e hora atuais
+  const nextDebt = debts
+    .filter(d => !d.paid && new Date(d.dueDate) >= now)
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
 
   const adminCards = [
     {
@@ -95,26 +110,36 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Indicadores (só para não-admin) */}
-        {/*!user?.isAdmin && (
+        {!user?.isAdmin && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-600 dark:text-gray-400">TOTAL INVESTIDO</h3>
+              <h3 className="text-sm text-gray-600 dark:text-gray-400">SALDO EM CAIXA</h3>
               <p className="text-3xl font-bold text-gray-800 dark:text-white">
-                R$ {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                {formatCurrency(balance)}
               </p>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Sua contribuição: R$ {userContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Atualizado em tempo real
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-600 dark:text-gray-400">SUA PORCENTAGEM</h3>
-              <p className="text-3xl font-bold text-gray-800 dark:text-white">
-                {percentage.toFixed(1)}%
-              </p>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Do total investido</p>
+              <h3 className="text-sm text-gray-600 dark:text-gray-400">PRÓXIMA DÍVIDA</h3>
+              {nextDebt ? (
+                <>
+                  <p className="text-3xl font-bold text-gray-800 dark:text-white">
+                    {formatCurrency(nextDebt.amount)}
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Vence em {new Date(nextDebt.dueDate).toLocaleDateString('pt-BR')}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xl text-gray-600 dark:text-gray-400">
+                  Nenhuma dívida pendente
+                </p>
+              )}
             </div>
           </div>
-        )*/}
+        )}
 
         {/* Cards de navegação rápida */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">

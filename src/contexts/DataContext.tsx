@@ -91,6 +91,14 @@ export type CashMovement = {
   source: 'manual' | 'sale' | 'debt_payment';
 };
 
+type MonthlySummary = {
+  month: string;
+  year: number;
+  cashBalance: number;
+  totalDebts: number;
+  dateSaved: string;
+};
+
 type DataContextType = {
   investments: Investment[];
   addInvestment: (description: string, amount: number, isTimeInvestment?: boolean, sessionId?: string) => Promise<void>;
@@ -139,6 +147,7 @@ type DataContextType = {
   }) => Promise<Sale[]>;
 
   cashMovements: CashMovement[];
+  saveMonthlySummary: (summary: MonthlySummary) => Promise<void>;
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -433,6 +442,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
   };
 
+  const saveMonthlySummary = async (summary: MonthlySummary) => {
+    try {
+      await addDoc(collection(db, 'monthlySummaries'), summary);
+      console.log('Monthly summary saved:', summary);
+    } catch (error) {
+      console.error('Error saving monthly summary:', error);
+      throw error;
+    }
+  };
+
   const addProduct = async (
     p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
   ) => {
@@ -652,7 +671,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         undoSale,
         getSales,
 
-        cashMovements
+        cashMovements,
+        saveMonthlySummary
       }}
     >
       {children}
