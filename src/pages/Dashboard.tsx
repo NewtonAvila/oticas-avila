@@ -24,7 +24,7 @@ const Dashboard: React.FC = () => {
   const balance = totalEntries - totalExits;
 
   // Encontra a próxima dívida a vencer (não paga e com data futura ou atual)
-  const now = new Date('2025-05-18T14:03:00+03:00'); // Data e hora atuais
+  const now = new Date('2025-05-18T14:56:00+03:00'); // Data e hora atuais ajustadas
   const nextDebt = debts
     .filter(d => !d.paid && new Date(d.dueDate) >= now)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
@@ -39,7 +39,7 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  const regularCards = [
+  const partnerCards = [
     {
       title: 'Controle de Horas',
       description: 'Registrar horas trabalhadas',
@@ -91,7 +91,24 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  const menuItems = user?.isAdmin ? adminCards : regularCards;
+  const sellerCards = [
+    {
+      title: 'Cadastro de Produtos',
+      description: 'Gerenciar estoque e preços',
+      path: '/register-product',
+      icon: <span className="text-2xl">📦</span>,
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Registrar Venda',
+      description: 'Registrar vendas e estornar',
+      path: '/register-sale',
+      icon: <span className="text-2xl">🛒</span>,
+      color: 'bg-orange-500'
+    }
+  ];
+
+  const menuItems = user?.isAdmin ? adminCards : user?.role === 'seller' ? sellerCards : partnerCards;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
@@ -100,17 +117,19 @@ const Dashboard: React.FC = () => {
         {/* Boas-vindas */}
         <div className="bg-indigo-600 text-white rounded-lg p-4 shadow">
           <h2 className="text-xl font-bold">
-            Olá, {user?.isAdmin ? 'Administrador' : user?.firstName}!
+            Olá, {user?.isAdmin ? 'Administrador' : user?.firstName || 'Usuário'}!
           </h2>
           <p className="text-sm">
             {user?.isAdmin
               ? 'Gerencie seus investimentos e horas trabalhadas a partir deste painel.'
+              : user?.role === 'seller'
+              ? 'Gerencie vendas e produtos.'
               : 'Gerencie as Óticas Avila de forma fácil!'}
           </p>
         </div>
 
-        {/* Indicadores (só para não-admin) */}
-        {!user?.isAdmin && (
+        {/* Indicadores (só para não-admin e não-seller) */}
+        {!user?.isAdmin && user?.role !== 'seller' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
               <h3 className="text-sm text-gray-600 dark:text-gray-400">SALDO EM CAIXA</h3>

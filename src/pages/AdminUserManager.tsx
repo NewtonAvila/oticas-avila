@@ -144,6 +144,15 @@ const AdminUserManager: React.FC = () => {
               <input value={selectedUser.lastName} onChange={e => setSelectedUser({ ...selectedUser, lastName: e.target.value })} className="input-field" />
               <input value={selectedUser.username} onChange={e => setSelectedUser({ ...selectedUser, username: e.target.value })} className="input-field" />
               <input value={selectedUser.email} onChange={e => setSelectedUser({ ...selectedUser, email: e.target.value })} className="input-field" />
+              <select
+                value={selectedUser.role || 'partner'}
+                onChange={e => setSelectedUser({ ...selectedUser, role: e.target.value })}
+                className="input-field"
+              >
+                <option value="partner">Sócio</option>
+                <option value="seller">Vendedor</option>
+              </select>
+              <div></div> {/* Placeholder para alinhamento */}
             </div>
 
             <button onClick={handleUserUpdate} className="btn bg-blue-600 text-white px-4 py-2 rounded">

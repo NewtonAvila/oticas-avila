@@ -19,6 +19,7 @@ export type User = {
   firstName: string;
   lastName: string;
   isAdmin: boolean;
+  role?: string; // Novo campo opcional para role
 };
 
 type AuthContextType = {
@@ -29,7 +30,8 @@ type AuthContextType = {
     lastName: string,
     username: string,
     email: string,
-    password: string
+    password: string,
+    role?: string
   ) => Promise<boolean>;
   logout: () => void;
   resetPassword: (username: string) => Promise<boolean>;
@@ -69,7 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         firstName: 'Administrador',
         lastName: '',
         password: 'admin',
-        isAdmin: true
+        isAdmin: true,
+        role: 'admin'
       };
       await setDoc(doc(usersRef, adminUser.id), adminUser);
     }
@@ -85,7 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!snapshot.empty) {
         const docSnap = snapshot.docs[0];
-        const userData = docSnap.data();
+        const userData = docSnap.data() as User & { password: string };
 
         if (userData.password === password) {
           const userObj: User = {
@@ -94,7 +97,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: userData.email,
             firstName: userData.firstName,
             lastName: userData.lastName,
-            isAdmin: userData.isAdmin || false
+            isAdmin: userData.isAdmin || false,
+            role: userData.role || 'partner' // Padrão para compatibilidade
           };
           localStorage.setItem('user', JSON.stringify(userObj));
           setUser(userObj);
@@ -119,7 +123,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     lastName: string,
     username: string,
     email: string,
-    password: string
+    password: string,
+    role: string = 'partner' // Padrão como sócio, pode ser sobrescrito
   ): Promise<boolean> => {
     setLoading(true);
     setError(null);
@@ -140,7 +145,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         firstName,
         lastName,
         password,
-        isAdmin: false
+        isAdmin: false,
+        role
       };
 
       await setDoc(doc(db, 'users', newUser.id), newUser);
