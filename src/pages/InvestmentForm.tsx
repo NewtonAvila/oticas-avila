@@ -10,7 +10,6 @@ const InvestmentForm: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ message: '', isError: false });
-  const [recentInvestments, setRecentInvestments] = useState<any[]>([]);
   const [editInvestment, setEditInvestment] = useState<{ id: string; description: string; amount: string } | null>(null);
 
   const { user } = useAuth();
@@ -24,12 +23,11 @@ const InvestmentForm: React.FC = () => {
   } = useData();
 
   useEffect(() => {
+    // Não limitar a 5 investimentos, apenas filtrar pelo userId
     if (user) {
-      const userInvestments = investments
-        .filter(inv => inv.userId === user.id)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 5);
-      setRecentInvestments(userInvestments);
+      const userInvestments = investments.filter(inv => inv.userId === user.id);
+      // Ordenar por data decrescente (mais recentes primeiro)
+      userInvestments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }
   }, [investments, user]);
 
@@ -96,6 +94,29 @@ const InvestmentForm: React.FC = () => {
     }
   };
 
+  // Agrupar investimentos por mês e ano
+  const groupInvestmentsByMonth = (investmentsList: typeof investments) => {
+    const grouped: { [key: string]: typeof investments } = {};
+    investmentsList.forEach(inv => {
+      const date = new Date(inv.date);
+      const monthYear = date.toLocaleString('default', { month: 'long', year: 'numeric' }); // Ex.: "Maio 2025"
+      if (!grouped[monthYear]) {
+        grouped[monthYear] = [];
+      }
+      grouped[monthYear].push(inv);
+    });
+    // Ordenar os meses cronologicamente
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+    return { grouped, sortedKeys };
+  };
+
+  const userInvestments = user ? investments.filter(inv => inv.userId === user.id) : [];
+  const { grouped, sortedKeys } = groupInvestmentsByMonth(userInvestments);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <Header title="Registrar Investimento" showBackButton />
@@ -126,93 +147,95 @@ const InvestmentForm: React.FC = () => {
               </div>
             </div>
             <div className="card">
-              <h2 className="text-lg font-semibold mb-4">Seus Últimos Investimentos</h2>
-              {recentInvestments.length > 0 ? (
-                <ul className="space-y-4">
-                  {recentInvestments.map(inv => {
-                    const isEditing = editInvestment?.id === inv.id;
-                    return (
-                      <li
-                        key={inv.id}
-                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg p-3 flex justify-between items-center"
-                      >
-                        <div>
-                          {isEditing && editInvestment ? (
-                            <>
-                              <input
-                                type="text"
-                                value={editInvestment.description}
-                                onChange={(e) =>
-                                  setEditInvestment({ ...editInvestment, description: e.target.value })
-                                }
-                                className="input-field w-48 mb-2"
-                                placeholder="Descrição"
-                              />
-                              <input
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={editInvestment.amount}
-                                onChange={(e) =>
-                                  setEditInvestment({ ...editInvestment, amount: e.target.value })
-                                }
-                                className="input-field w-24"
-                                placeholder="0,00"
-                              />
-                            </>
-                          ) : (
-                            <>
-                              <p className="font-medium">{inv.description}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-300">
-                                {new Date(inv.date).toLocaleDateString('pt-BR')}
-                              </p>
-                            </>
-                          )}
+              <h2 className="text-lg font-semibold mb-4">Seus Investimentos</h2>
+              {userInvestments.length > 0 ? (
+                sortedKeys.map(monthYear => (
+                  <div key={monthYear} className="mt-4">
+                    <h4 className="font-semibold text-md mb-2">{monthYear}</h4>
+                    {grouped[monthYear].map(inv => {
+                      const isEditing = editInvestment?.id === inv.id;
+                      return (
+                        <div
+                          key={inv.id}
+                          className="mt-2 p-3 rounded border bg-gray-100 dark:bg-gray-700 dark:border-gray-600"
+                        >
+                          <div className="flex justify-between">
+                            <div>
+                              {isEditing && editInvestment ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    value={editInvestment.description}
+                                    onChange={(e) =>
+                                      setEditInvestment({ ...editInvestment, description: e.target.value })
+                                    }
+                                    className="w-full px-3 py-2 rounded border bg-white dark:bg-gray-700 mb-2"
+                                    placeholder="Descrição"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    value={editInvestment.amount}
+                                    onChange={(e) =>
+                                      setEditInvestment({ ...editInvestment, amount: e.target.value })
+                                    }
+                                    className="w-full px-3 py-2 rounded border bg-white dark:bg-gray-700 mb-2"
+                                    placeholder="0,00"
+                                  />
+                                </>
+                              ) : (
+                                <>
+                                  <p className="font-medium">{inv.description}</p>
+                                  <p className="text-sm text-gray-500 dark:text-gray-300">
+                                    {new Date(inv.date).toLocaleDateString('pt-BR')}
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                            <div className="text-right flex items-center gap-2">
+                              {!isEditing && (
+                                <>
+                                  <p className="font-bold text-blue-600 dark:text-blue-400">
+                                    {formatCurrency(inv.amount)}
+                                  </p>
+                                  <button
+                                    onClick={() => handleEditRow(inv.id, inv.description, inv.amount)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(inv.id)}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    <Trash size={16} />
+                                  </button>
+                                </>
+                              )}
+                              {isEditing && (
+                                <>
+                                  <button
+                                    onClick={handleSaveRow}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-sm"
+                                  >
+                                    Salvar
+                                  </button>
+                                  <button
+                                    onClick={handleCancelRow}
+                                    className="bg-gray-500 hover:bg-gray-600 text-white px-2 py-1 rounded text-sm"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right flex items-center gap-2">
-                          {!isEditing && (
-                            <p className="font-bold text-blue-600 dark:text-blue-400">
-                              {formatCurrency(inv.amount)}
-                            </p>
-                          )}
-                          {inv.isTimeInvestment ? null : isEditing ? (
-                            <>
-                              <button
-                                onClick={handleSaveRow}
-                                className="btn-primary px-2 py-1 text-sm"
-                              >
-                                Salvar
-                              </button>
-                              <button
-                                onClick={handleCancelRow}
-                                className="btn-outline px-2 py-1 text-sm"
-                              >
-                                Cancelar
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() =>
-                                  handleEditRow(inv.id, inv.description, inv.amount)
-                                }
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(inv.id)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
+                      );
+                    })}
+                  </div>
+                ))
               ) : (
                 <p className="text-gray-500 dark:text-gray-300 text-sm italic">Nenhum investimento registrado.</p>
               )}
