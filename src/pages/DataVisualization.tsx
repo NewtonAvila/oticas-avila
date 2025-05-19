@@ -5,8 +5,6 @@ import Header from '../components/Header';
 import { useData } from '../contexts/DataContext';
 import { Users, TrendingUp, HelpCircle, Wallet, Calendar } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale, Title);
@@ -25,16 +23,8 @@ const generateColor = (index: number) => {
   return colors[index % colors.length];
 };
 
-type MonthlySummary = {
-  month: string;
-  year: number;
-  cashBalance: number;
-  totalDebts: number;
-  dateSaved: string;
-};
-
 const DataVisualization: React.FC = () => {
-  const { getAllUsersInvestmentData, investments, cashMovements, debts, saveMonthlySummary } = useData();
+  const { getAllUsersInvestmentData, investments, cashMovements, debts } = useData();
   const [pieChartData, setPieChartData] = useState({
     labels: [] as string[],
     datasets: [{
@@ -51,21 +41,7 @@ const DataVisualization: React.FC = () => {
     datasets: [] as any[]
   });
   const [groupedBarLabels, setGroupedBarLabels] = useState<{ label: string; year: number; isCurrent: boolean }[]>([]);
-  const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[]>([]);
   const chartContainerRef = useRef<HTMLDivElement>(null);
-
-  // Load monthly summaries from Firestore
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'monthlySummaries'), snap => {
-      const summaries = snap.docs.map(doc => doc.data() as MonthlySummary);
-      summaries.sort((a, b) => new Date(`${a.year}-${a.month}-01`).getTime() - new Date(`${b.year}-${b.month}-01`).getTime());
-      setMonthlySummaries(summaries);
-    }, (error) => {
-      console.error('Error fetching monthly summaries:', error);
-    });
-
-    return () => unsub();
-  }, []);
 
   // Pie chart for investments
   useEffect(() => {
@@ -128,7 +104,7 @@ const DataVisualization: React.FC = () => {
     if (!allDates.length) return;
 
     const earliestDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-    const currentDate = new Date('2025-05-18T13:42:00+03:00'); // Current date and time (1:42 PM EEST, May 18, 2025)
+    const currentDate = new Date('2025-05-18T12:47:00+03:00'); // Current date and time
 
     // Generate all months from the earliest date to the current date, including months with debts
     const months: { year: number; month: number }[] = [];
@@ -150,69 +126,31 @@ const DataVisualization: React.FC = () => {
       'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'
     ].map(name => name.charAt(0).toUpperCase() + name.slice(1)); // Capitalize first letter
 
-    months.forEach(({ year, month }, index) => {
+    months.forEach(({ year, month }) => {
+      // Calculate cash balance up to the end of the month
       const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
-      const isCurrentMonth = year === currentDate.getFullYear() && month === currentDate.getMonth();
-      const summary = monthlySummaries.find(s => s.month === monthNames[month] && s.year === year);
+      const movementsUpToMonth = cashMovements.filter(m => m.date && m.date.toDate() <= endOfMonth);
+      const totalEntries = movementsUpToMonth
+        .filter(m => m.type === 'entrada')
+        .reduce((sum, m) => sum + m.amount, 0);
+      const totalExits = movementsUpToMonth
+        .filter(m => m.type === 'saida')
+        .reduce((sum, m) => sum + m.amount, 0);
+      const balance = totalEntries - totalExits;
 
-      // Use saved summary data if available (for past months), otherwise calculate
-      let balance = 0;
-      let totalDebt = 0;
-
-      if (summary) {
-        // Use saved data for past months
-        balance = summary.cashBalance;
-        totalDebt = summary.totalDebts;
-      } else {
-        // Calculate for current month or if no summary exists
-        if (isCurrentMonth) {
-          const movementsUpToCurrent = cashMovements.filter(m => m.date && m.date.toDate() <= currentDate);
-          const totalEntries = movementsUpToCurrent
-            .filter(m => m.type === 'entrada')
-            .reduce((sum, m) => sum + m.amount, 0);
-          const totalExits = movementsUpToCurrent
-            .filter(m => m.type === 'saida')
-            .reduce((sum, m) => sum + m.amount, 0);
-          balance = totalEntries - totalExits;
-        } else if (endOfMonth <= currentDate) {
-          const movementsUpToMonth = cashMovements.filter(m => m.date && m.date.toDate() <= endOfMonth);
-          const totalEntries = movementsUpToMonth
-            .filter(m => m.type === 'entrada')
-            .reduce((sum, m) => sum + m.amount, 0);
-          const totalExits = movementsUpToMonth
-            .filter(m => m.type === 'saida')
-            .reduce((sum, m) => sum + m.amount, 0);
-          balance = totalEntries - totalExits;
-        }
-
-        const monthDebts = debts.filter(d => {
-          const dueDate = new Date(d.dueDate);
-          return dueDate.getFullYear() === year && dueDate.getMonth() === month;
-        });
-        totalDebt = monthDebts.reduce((sum, d) => sum + d.amount, 0);
-      }
+      // Calculate debts for the month
+      const monthDebts = debts.filter(d => {
+        const dueDate = new Date(d.dueDate);
+        return dueDate.getFullYear() === year && dueDate.getMonth() === month;
+      });
+      const totalDebt = monthDebts.reduce((sum, d) => sum + d.amount, 0);
 
       cashData.push(balance);
       debtData.push(totalDebt);
       labels.push(monthNames[month]);
-
-      // Save monthly summary when the month ends
-      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-      if (currentDate.getDate() === lastDayOfMonth && currentDate.getMonth() === month && currentDate.getFullYear() === year) {
-        saveMonthlySummary({
-          month: monthNames[month],
-          year,
-          cashBalance: balance,
-          totalDebts: totalDebt,
-          dateSaved: currentDate.toISOString()
-        }).then(() => {
-          console.log(`Saved monthly summary for ${monthNames[month]} ${year}: Caixa = ${formatCurrency(balance)}, Dívidas = ${formatCurrency(totalDebt)}`);
-        }).catch(err => {
-          console.error('Failed to save monthly summary:', err);
-        });
-      }
     });
 
+    // Group labels by year for custom display
     const newGroupedLabels = months.map(({ year, month }) => ({
       label: monthNames[month],
       year,
@@ -249,6 +187,7 @@ const DataVisualization: React.FC = () => {
 
     setGroupedBarLabels(newGroupedLabels);
 
+    // Scroll to the current month
     if (chartContainerRef.current) {
       const currentMonthIndex = newGroupedLabels.findIndex(item => item.isCurrent);
       if (currentMonthIndex !== -1) {
@@ -257,7 +196,7 @@ const DataVisualization: React.FC = () => {
         chartContainerRef.current.scrollLeft = scrollPosition;
       }
     }
-  }, [cashMovements, debts, monthlySummaries, saveMonthlySummary]);
+  }, [cashMovements, debts]);
 
   const barChartOptions = {
     responsive: true,
@@ -508,8 +447,8 @@ const DataVisualization: React.FC = () => {
                 </h2>
                 <div className="text-gray-600 dark:text-gray-400 text-sm space-y-3">
                   <p>Este gráfico mostra o saldo de caixa (azul) e as dívidas (vermelho) para cada mês.</p>
-                  <p>Para meses passados, os valores são obtidos dos resumos mensais salvos, se disponíveis.</p>
-                  <p>Para o mês atual, o saldo de caixa é calculado até a data atual, e as dívidas são todas as registradas para o mês.</p>
+                  <p>O saldo de caixa é calculado com base nas movimentações até o final de cada mês.</p>
+                  <p>As dívidas incluem todas as registradas para o mês correspondente.</p>
                   <p>Use a barra de rolagem para navegar pelos meses e o botão para ir ao mês atual.</p>
                 </div>
               </div>
