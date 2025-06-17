@@ -156,8 +156,8 @@ const RegisterDebt: React.FC = () => {
             </div>
             {showUnpaid && unpaidSortedKeys.map(monthYear => (
               <div key={monthYear} className="mt-4">
-                <h4 className="font-semibold text-md mb-2">{monthYear}</h4>
-                {unpaidGrouped[monthYear].map(d => {
+                <h4 className="font-semibold text-md mb-2">{monthYear} - {formatCurrency(getTotal(unpaidGrouped[monthYear]))}</h4>
+                {unpaidGrouped[monthYear].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).map(d => {
                   const isEditing = editDebt?.id === d.id;
                   return (
                     <div key={d.id} className={`mt-2 p-3 rounded border ${isOverdue(d) ? 'bg-red-100 text-red-800 dark:bg-red-200 dark:text-red-900' : 'bg-blue-50 dark:bg-blue-100 dark:text-gray-900'}`}>
@@ -250,8 +250,8 @@ const RegisterDebt: React.FC = () => {
             </div>
             {showPaid && paidSortedKeys.map(monthYear => (
               <div key={monthYear} className="mt-4">
-                <h4 className="font-semibold text-md mb-2">{monthYear}</h4>
-                {paidGrouped[monthYear].map(d => {
+                <h4 className="font-semibold text-md mb-2">{monthYear} - {formatCurrency(getTotal(paidGrouped[monthYear]))}</h4>
+                {paidGrouped[monthYear].sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()).map(d => {
                   const isEditing = editDebt?.id === d.id;
                   return (
                     <div key={d.id} className="mt-2 p-3 rounded border bg-gray-200 text-gray-500">
