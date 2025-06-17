@@ -34,7 +34,7 @@ const RegisterProduct: React.FC = () => {
         Array.isArray(products)
           ? products.filter(p =>
               p && (p.description.toLowerCase().includes(term) || p.seq?.toString().includes(term))
-            )
+            ).sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
           : []
       );
     } catch (err) {
@@ -119,6 +119,10 @@ const RegisterProduct: React.FC = () => {
     }
   };
 
+  const getTotalCostValue = () => {
+    return Array.isArray(products) ? products.reduce((acc, p) => acc + (p.costPrice * p.quantity), 0) : 0;
+  };
+
   if (!user) return null;
 
   if (loading) return <div className="text-center p-6">Carregando...</div>;
@@ -132,7 +136,10 @@ const RegisterProduct: React.FC = () => {
           <section className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold mb-2">Total em Estoque</h2>
             <p className="text-2xl font-bold">
-              {formatCurrency(getTotalProductValue ? getTotalProductValue() : 0)}
+              {formatCurrency(getTotalProductValue ? getTotalProductValue() : 0)} (Venda)
+            </p>
+            <p className="text-lg font-medium">
+              {formatCurrency(getTotalCostValue())} (Custo)
             </p>
           </section>
 
@@ -152,7 +159,7 @@ const RegisterProduct: React.FC = () => {
                 <thead>
                   <tr className="bg-gray-200 dark:bg-gray-700">
                     <th className="p-2 min-w-[60px] whitespace-nowrap">Seq</th>
-                    <th className="p-2 min-w-[150px] whitespace-nowrap">Descrição</th>
+                    <th className="p-2 min-w-[150px] whitespace-nowrap">Código do Produto</th>
                     <th className="p-2 min-w-[120px] whitespace-nowrap">Preço de Custo (R$)</th>
                     <th className="p-2 min-w-[100px] whitespace-nowrap">% Lucro</th>
                     <th className="p-2 min-w-[100px] whitespace-nowrap">Quantidade</th>
@@ -272,7 +279,7 @@ const RegisterProduct: React.FC = () => {
             <h2 className="text-xl font-semibold mb-4">Novo Produto</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block mb-1 text-sm">Descrição</label>
+                <label className="block mb-1 text-sm">Código do Produto</label>
                 <input
                   type="text"
                   value={description}

@@ -5,7 +5,7 @@ import { useData } from '../contexts/DataContext';
 import { formatCurrency } from '../utils/format';
 
 const TimeTracker: React.FC = () => {
-  const [hourlyRate, setHourlyRate] = useState<string>('25');
+  const [hourlyRate, setHourlyRate] = useState<string>('15');
   const [timerState, setTimerState] = useState<'idle' | 'running' | 'paused'>('idle');
   const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
@@ -17,7 +17,7 @@ const TimeTracker: React.FC = () => {
   const [editSessionRow, setEditSessionRow] = useState<{ id: string; startTime: string; endTime: string | null; rate: string; isPaid: boolean } | null>(null);
   const [timeError, setTimeError] = useState<string>('');
   const [showNewSessionForm, setShowNewSessionForm] = useState<boolean>(false);
-  const [newSessionRate, setNewSessionRate] = useState<string>('25');
+  const [newSessionRate, setNewSessionRate] = useState<string>('15');
   const [newSessionIsPaid, setNewSessionIsPaid] = useState<boolean>(true);
 
   const { 
@@ -249,7 +249,7 @@ const TimeTracker: React.FC = () => {
                 <label htmlFor="newSessionRate" className="label">Valor da Hora (R$)</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                    <DollarSign size={18} />
+                    R$
                   </span>
                   <input
                     id="newSessionRate"
@@ -259,7 +259,7 @@ const TimeTracker: React.FC = () => {
                     value={newSessionRate}
                     onChange={(e) => setNewSessionRate(e.target.value)}
                     className="input-field pl-10"
-                    placeholder="25,00"
+                    placeholder="15,00"
                     required
                   />
                 </div>
@@ -307,7 +307,7 @@ const TimeTracker: React.FC = () => {
                 <label htmlFor="hourlyRate" className="label">Valor da Hora (R$)</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                    <DollarSign size={18} />
+                    R$
                   </span>
                   <input
                     id="hourlyRate"
@@ -317,7 +317,7 @@ const TimeTracker: React.FC = () => {
                     value={hourlyRate}
                     onChange={(e) => setHourlyRate(e.target.value)}
                     className="input-field pl-10"
-                    placeholder="25,00"
+                    placeholder="15,00"
                     disabled
                     required
                   />
