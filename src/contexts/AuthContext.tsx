@@ -1,15 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import {
-  collection,
-  getDoc,
-  getDocs,
-  setDoc,
-  doc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where
-} from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type User = {
@@ -18,25 +8,13 @@ export type User = {
   email: string;
   firstName: string;
   lastName: string;
-  isAdmin: boolean;
-  role?: string; // Novo campo opcional para role
 };
 
 type AuthContextType = {
   user: User | null;
   login: (username: string, password: string) => Promise<boolean>;
-  register: (
-    firstName: string,
-    lastName: string,
-    username: string,
-    email: string,
-    password: string,
-    role?: string
-  ) => Promise<boolean>;
+  register: (firstName: string, lastName: string, username: string, email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  resetPassword: (username: string) => Promise<boolean>;
-  deleteUser: (userId: string) => Promise<boolean>;
-  updateUser: (userId: string, userData: Partial<User>) => Promise<boolean>;
   loading: boolean;
   error: string | null;
 };
@@ -71,8 +49,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         firstName: 'Administrador',
         lastName: '',
         password: 'admin',
-        isAdmin: true,
-        role: 'admin'
       };
       await setDoc(doc(usersRef, adminUser.id), adminUser);
     }
@@ -97,8 +73,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             email: userData.email,
             firstName: userData.firstName,
             lastName: userData.lastName,
-            isAdmin: userData.isAdmin || false,
-            role: userData.role || 'partner' // Padrão para compatibilidade
           };
           localStorage.setItem('user', JSON.stringify(userObj));
           setUser(userObj);
@@ -118,14 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async (
-    firstName: string,
-    lastName: string,
-    username: string,
-    email: string,
-    password: string,
-    role: string = 'partner' // Padrão como sócio, pode ser sobrescrito
-  ): Promise<boolean> => {
+  const register = async (firstName: string, lastName: string, username: string, email: string, password: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
 
@@ -145,8 +112,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         firstName,
         lastName,
         password,
-        isAdmin: false,
-        role
       };
 
       await setDoc(doc(db, 'users', newUser.id), newUser);
@@ -162,78 +127,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteUser = async (userId: string): Promise<boolean> => {
-    if (!user?.isAdmin) {
-      setError('Permissão negada');
-      return false;
-    }
-
-    try {
-      await deleteDoc(doc(db, 'users', userId));
-      return true;
-    } catch {
-      setError('Erro ao deletar usuário');
-      return false;
-    }
-  };
-
-  const updateUser = async (userId: string, userData: Partial<User>): Promise<boolean> => {
-    if (!user?.isAdmin) {
-      setError('Permissão negada');
-      return false;
-    }
-
-    try {
-      await updateDoc(doc(db, 'users', userId), userData);
-      return true;
-    } catch {
-      setError('Erro ao atualizar usuário');
-      return false;
-    }
-  };
-
   const logout = () => {
     localStorage.removeItem('user');
     setUser(null);
   };
 
-  const resetPassword = async (username: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const q = query(collection(db, 'users'), where('username', '==', username));
-      const snapshot = await getDocs(q);
-
-      if (!snapshot.empty) {
-        console.log(`Instruções de redefinição enviadas para ${username}`);
-        return true;
-      } else {
-        setError('Usuário não encontrado');
-        return false;
-      }
-    } catch {
-      setError('Erro ao tentar redefinir senha');
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        login,
-        register,
-        logout,
-        resetPassword,
-        deleteUser,
-        updateUser,
-        loading,
-        error
-      }}
-    >
+    <AuthContext.Provider value={{ user, login, register, logout, loading, error }}>
       {children}
     </AuthContext.Provider>
   );

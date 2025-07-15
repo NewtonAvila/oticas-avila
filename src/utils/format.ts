@@ -1,11 +1,11 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// Formatar valor monetário para BRL
-export const formatCurrency = (value: number): string => {
+// Formatar valor monetário para a moeda especificada
+export const formatCurrency = (value: number, currency: string = 'BRL'): string => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency: 'BRL',
+    currency: currency,
   }).format(value);
 };
 

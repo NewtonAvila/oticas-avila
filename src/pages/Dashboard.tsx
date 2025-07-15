@@ -4,164 +4,112 @@ import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Header';
 import { formatCurrency } from '../utils/format';
+import { Debt, Entry } from '../contexts/DataContext';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { getTotalInvestment, getUserInvestmentPercentage, getUserContributionAmount, cashMovements, debts } = useData();
+  const { entries = [], debts = [], unplannedExpenses = [] } = useData() || {};
   const { user } = useAuth();
+  const today = new Date();
 
-  const total = getTotalInvestment();
-  const percentage = getUserInvestmentPercentage();
-  const userContribution = getUserContributionAmount();
+  // 1) Total recebido até hoje (somente entradas)
+  const totalReceived = entries
+    .filter((e: Entry) => new Date(e.date) <= today)
+    .reduce((sum, e) => sum + e.amount, 0);
 
-  // Calcula o saldo em caixa
-  const totalEntries = cashMovements
-    .filter(m => m.type === 'entrada')
-    .reduce((sum, m) => sum + m.amount, 0);
-  const totalExits = cashMovements
-    .filter(m => m.type === 'saida')
-    .reduce((sum, m) => sum + m.amount, 0);
-  const balance = totalEntries - totalExits;
+  // 2) Total de dívidas pagas até hoje
+  const paidDebtsTotal = debts
+    .filter(d => d.paid && d.dueDate && (new Date(d.dueDate).getTime() || new Date(0).getTime()) <= today.getTime())
+    .reduce((sum, d) => sum + d.amount, 0);
+  console.log("paidDebtsTotal Debug:", debts.filter(d => d.paid && d.dueDate && (new Date(d.dueDate).getTime() || new Date(0).getTime()) <= today.getTime()).map(d => ({ id: d.id, amount: d.amount, dueDate: d.dueDate, paid: d.paid })));
 
-  // Encontra a próxima dívida a vencer (não paga e com data futura ou atual)
-  const now = new Date('2025-05-18T14:56:00+03:00'); // Data e hora atuais ajustadas
-  const nextDebt = debts
-    .filter(d => !d.paid && new Date(d.dueDate) >= now)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+  // 3) Total de gastos não planejados até hoje
+  const unplannedExpensesTotal = unplannedExpenses
+    .filter(e => new Date(e.date) <= today)
+    .reduce((sum, e) => sum + e.amount, 0);
 
-  const adminCards = [
-    {
-      title: 'Gerenciar Usuários',
-      description: 'Ver dados, editar ou excluir usuários',
-      path: '/admin-users',
-      icon: <span className="text-2xl">👥</span>,
-      color: 'bg-red-500'
-    }
+  // 4) Saldo em caixa
+  const cashBalance = totalReceived - paidDebtsTotal - unplannedExpensesTotal;
+  console.log("totalReceived:", totalReceived, "paidDebtsTotal:", paidDebtsTotal, "unplannedExpensesTotal:", unplannedExpensesTotal, "cashBalance:", cashBalance);
+
+  // Mês e ano atuais
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+
+  // 5) Entradas do mês
+  const totalEntries = entries
+    .filter(e => {
+      const d = new Date(e.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    })
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  // 6) Gastos não planejados do mês
+  const totalExits = unplannedExpenses
+    .filter(e => {
+      const d = new Date(e.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    })
+    .reduce((sum, e) => sum + e.amount, 0);
+
+  // 7) Dívidas pendentes do mês
+  const monthlyDebts = debts
+    .filter(d => {
+      if (!d.dueDate) return false;
+      const dDate = new Date(d.dueDate);
+      return dDate.getFullYear() === currentYear && dDate.getMonth() === currentMonth && !d.paid;
+    })
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  // 9) Dívidas pagas no mês
+  const paidDebtsThisMonth = debts
+    .filter(d => {
+      if (!d.dueDate) return false;
+      const dDate = new Date(d.dueDate);
+      return dDate.getFullYear() === currentYear && dDate.getMonth() === currentMonth && d.paid;
+    })
+    .reduce((sum, d) => sum + d.amount, 0);
+
+  // 8) Saldo do mês = entradas - (saídas + dívidas pendentes + dívidas pagas no mês)
+  const monthlyBalance = totalEntries - (totalExits + monthlyDebts + paidDebtsThisMonth);
+  console.log("totalEntries:", totalEntries, "totalExits:", totalExits, "monthlyDebts:", monthlyDebts, "paidDebtsThisMonth:", paidDebtsThisMonth, "monthlyBalance:", monthlyBalance);
+
+  const menuItems = [
+    { title: 'Registrar Dívida', path: '/register-debt', icon: '💸', color: 'bg-yellow-500' },
+    { title: 'Registrar Entrada', path: '/register-entry', icon: '💰', color: 'bg-green-500' },
+    { title: 'Gastos não Planejados', path: '/unplanned-expenses', icon: '💳', color: 'bg-red-500' },
+    { title: 'Visualização de Dados', path: '/data-visualization', icon: '📈', color: 'bg-blue-500' },
   ];
-
-  const partnerCards = [
-    {
-      title: 'Controle de Horas',
-      description: 'Registrar horas trabalhadas',
-      path: '/time-tracker',
-      icon: <span className="text-2xl">🕒</span>,
-      color: 'bg-teal-500'
-    },
-    {
-      title: 'Cadastro de Produtos',
-      description: 'Gerenciar estoque e preços',
-      path: '/register-product',
-      icon: <span className="text-2xl">📦</span>,
-      color: 'bg-green-500'
-    },
-    {
-      title: 'Registrar Venda',
-      description: 'Registrar vendas e estornar',
-      path: '/register-sale',
-      icon: <span className="text-2xl">🛒</span>,
-      color: 'bg-orange-500'
-    },
-    {
-      title: 'Registrar Dívida',
-      description: 'Cadastrar novos gastos ou contas mensais',
-      path: '/register-debt',
-      icon: <span className="text-2xl">💸</span>,
-      color: 'bg-yellow-500'
-    },
-    {
-      title: 'Registrar Investimento',
-      description: 'Adicionar novos investimentos',
-      path: '/investments',
-      icon: <span className="text-2xl">🐷</span>,
-      color: 'bg-blue-500'
-    },
-    {
-      title: 'Caixa',
-      description: 'Ajustar saldo e controlar movimentações',
-      path: '/cash-control',
-      icon: <span className="text-2xl">💰</span>,
-      color: 'bg-indigo-500'
-    },
-    {
-      title: 'Visualizar Dados',
-      description: 'Gráficos e estatísticas',
-      path: '/data',
-      icon: <span className="text-2xl">📊</span>,
-      color: 'bg-purple-500'
-    }
-  ];
-
-  const sellerCards = [
-    {
-      title: 'Cadastro de Produtos',
-      description: 'Gerenciar estoque e preços',
-      path: '/register-product',
-      icon: <span className="text-2xl">📦</span>,
-      color: 'bg-green-500'
-    },
-    {
-      title: 'Registrar Venda',
-      description: 'Registrar vendas e estornar',
-      path: '/register-sale',
-      icon: <span className="text-2xl">🛒</span>,
-      color: 'bg-orange-500'
-    }
-  ];
-
-  const menuItems = user?.isAdmin ? adminCards : user?.role === 'seller' ? sellerCards : partnerCards;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Header title="Painel Principal" />
       <main className="container mx-auto p-6 space-y-8">
-        {/* Boas-vindas */}
         <div className="bg-indigo-600 text-white rounded-lg p-4 shadow">
-          <h2 className="text-xl font-bold">
-            Olá, {user?.isAdmin ? 'Administrador' : user?.firstName || 'Usuário'}!
-          </h2>
-          <p className="text-sm">
-            {user?.isAdmin
-              ? 'Gerencie seus investimentos e horas trabalhadas a partir deste painel.'
-              : user?.role === 'seller'
-              ? 'Gerencie vendas e produtos.'
-              : 'Gerencie as Óticas Avila de forma fácil!'}
-          </p>
+          <h2 className="text-xl font-bold">Olá, {user?.firstName || 'Usuário'}!</h2>
+          <p className="text-sm">Gerencie suas finanças de forma fácil!</p>
         </div>
 
-        {/* Indicadores (só para não-admin e não-seller) */}
-        {!user?.isAdmin && user?.role !== 'seller' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-600 dark:text-gray-400">SALDO EM CAIXA</h3>
-              <p className="text-3xl font-bold text-gray-800 dark:text-white">
-                {formatCurrency(balance)}
-              </p>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                Atualizado em tempo real
-              </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
-              <h3 className="text-sm text-gray-600 dark:text-gray-400">PRÓXIMA DÍVIDA</h3>
-              {nextDebt ? (
-                <>
-                  <p className="text-3xl font-bold text-gray-800 dark:text-white">
-                    {formatCurrency(nextDebt.amount)}
-                  </p>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    Vence em {new Date(nextDebt.dueDate).toLocaleDateString('pt-BR')}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xl text-gray-600 dark:text-gray-400">
-                  Nenhuma dívida pendente
-                </p>
-              )}
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
+            <h3 className="text-sm text-gray-600 dark:text-gray-400">SALDO EM CAIXA</h3>
+            <p className="text-3xl font-bold text-gray-800 dark:text-white">{formatCurrency(cashBalance, 'EUR')}</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">Dinheiro disponível no momento</p>
           </div>
-        )}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow text-center">
+            <h3 className="text-sm text-gray-600 dark:text-gray-400">DÍVIDAS PENDENTES</h3>
+            <p className="text-3xl font-bold text-gray-800 dark:text-white">{formatCurrency(monthlyDebts, 'EUR')}</p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">Total não pago no mês</p>
+          </div>
+        </div>
 
-        {/* Cards de navegação rápida */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={monthlyBalance >= 0 ? 'bg-green-100 dark:bg-green-900 p-6 rounded-lg shadow-lg border-2 border-green-400 text-center' : 'bg-red-100 dark:bg-red-900 p-6 rounded-lg shadow-lg border-2 border-red-400 text-center'}>
+          <h3 className="text-lg text-gray-700 dark:text-gray-200 font-semibold">SALDO DO MÊS</h3>
+          <p className="text-4xl font-bold text-gray-800 dark:text-white">{formatCurrency(monthlyBalance, 'EUR')}</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Entradas e saídas do mês</p>
+        </div>
+
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {menuItems.map((item, idx) => (
             <button
               key={idx}
@@ -171,12 +119,7 @@ const Dashboard: React.FC = () => {
               <div className={`${item.color} text-white p-3 rounded-lg mb-3`}>
                 {item.icon}
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-1">
-                {item.title}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">
-                {item.description}
-              </p>
+              <div className="text-lg font-semibold text-gray-800 dark:text-white mb-1">{item.title}</div>
             </button>
           ))}
         </section>

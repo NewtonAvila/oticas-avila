@@ -1,73 +1,87 @@
-// src/Router.tsx
-import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate
-} from "react-router-dom";
-import { useAuth } from "./contexts/AuthContext";
-import Dashboard from "./pages/Dashboard";
-import InvestmentForm from "./pages/InvestmentForm";
-import TimeTracker from "./pages/TimeTracker";
-import DataVisualization from "./pages/DataVisualization";
-import RegisterDebt from "./pages/RegisterDebt";
-import RegisterProduct from "./pages/RegisterProduct";
-import RegisterSale from "./pages/RegisterSale";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import AdminPanel from "./pages/AdminPanel";
-import AdminUserManager from "./pages/AdminUserManager";
-import CashControl from "./pages/CashControl";
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { DataProvider } from './contexts/DataContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import RegisterDebt from './pages/RegisterDebt';
+import RegisterEntry from './pages/RegisterEntry';
+import DataVisualization from './pages/DataVisualization';
+import UnplannedExpenses from './pages/UnplannedExpenses';
 
-const AppRoutes: React.FC = () => {
-  const { user } = useAuth();
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
 
+  if (loading) return <div>Carregando...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+
+  return <>{children}</>;
+};
+
+const AppRouter: React.FC = () => {
   return (
     <Router>
       <Routes>
-        {user ? (
-          <>
-            {/* Tela principal */}
-            <Route path="/" element={<Dashboard />} />
-
-            {/* Funcionalidades do usuário */}
-            <Route path="/investments" element={<InvestmentForm />} />
-            <Route path="/time-tracker" element={<TimeTracker />} />
-            <Route path="/data" element={<DataVisualization />} />
-            <Route path="/register-debt" element={<RegisterDebt />} />
-            <Route path="/register-product" element={<RegisterProduct />} />
-            <Route path="/register-sale" element={<RegisterSale />} />
-            <Route path="/cash-control" element={<CashControl />} /> {/* 🔹 Nova rota adicionada */}
-
-            {/* Painel de admin */}
-            {user.isAdmin && (
-              <>
-                <Route path="/admin" element={<AdminPanel />} />
-                <Route
-                  path="/admin-users"
-                  element={<AdminUserManager />}
-                />
-              </>
-            )}
-
-            {/* Qualquer outra URL redireciona para a home */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        ) : (
-          <>
-            {/* Login / Registro */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="*"
-              element={<Navigate to="/login" replace />}
-            />
-          </>
-        )}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/register-debt"
+          element={
+            <ProtectedRoute>
+              <RegisterDebt />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/register-entry"
+          element={
+            <ProtectedRoute>
+              <RegisterEntry />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/data-visualization"
+          element={
+            <ProtectedRoute>
+              <DataVisualization />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/unplanned-expenses"
+          element={
+            <ProtectedRoute>
+              <UnplannedExpenses />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
   );
 };
 
-export default AppRoutes;
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <DataProvider>
+        <ThemeProvider>
+          <AppRouter />
+        </ThemeProvider>
+      </DataProvider>
+    </AuthProvider>
+  );
+};
+
+export default App;

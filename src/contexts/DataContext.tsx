@@ -1,121 +1,36 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import {
-  collection,
-  doc,
-  onSnapshot,
-  runTransaction,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  DocumentReference,
-  serverTimestamp,
-  Timestamp
-} from 'firebase/firestore';
+import { collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
-
-export type Investment = {
-  id: string;
-  description: string;
-  amount: number;
-  userId: string;
-  userName: string;
-  date: string;
-  isTimeInvestment: boolean;
-  sessionId?: string;
-};
-
-export type TimeSession = {
-  id: string;
-  userId: string;
-  startTime: string;
-  endTime: string | null;
-  pausedTime: number;
-  hourlyRate: number;
-  isPaid: boolean;
-  isCompleted: boolean;
-};
 
 export type Debt = {
   id: string;
   description: string;
   amount: number;
-  type: 'único' | 'fixo';
   dueDate: string;
-  duration?: number;
   paid: boolean;
   userId: string;
   userName: string;
 };
 
-export type Sale = {
+export type Entry = {
   id: string;
-  seq: number;
-  productId: string;
-  description: string;
-  unitPrice: number;
-  discountPercent: number;
-  finalUnitPrice: number;
-  quantity: number;
-  totalPrice: number;
-  soldAt: string;
-  soldBy: string;
-  canceled?: boolean;
-};
-
-export type Product = {
-  id: string;
-  seq: number;
-  description: string;
-  costPrice: number;
-  profitMargin: number;
-  salePrice: number;
-  quantity: number;
-  createdAt: string;
-  createdBy: string;
-  updatedAt?: string;
-  updatedBy?: string;
-};
-
-export type CashMovement = {
-  id: string;
-  type: 'entrada' | 'saida';
   amount: number;
   description: string;
-  date: Timestamp | null;
-  userID: string;
-  userName: string;
-  source: 'manual' | 'sale' | 'debt_payment';
+  date: string;
+  userId: string;
 };
 
-type MonthlySummary = {
-  month: string;
-  year: number;
-  cashBalance: number;
-  totalDebts: number;
-  dateSaved: string;
+export type UnplannedExpense = {
+  id: string;
+  description: string;
+  amount: number;
+  date: string;
+  userId: string;
+  userName: string;
 };
 
 type DataContextType = {
-  investments: Investment[];
-  addInvestment: (description: string, amount: number, isTimeInvestment?: boolean, sessionId?: string) => Promise<void>;
-  updateInvestment: (id: string, data: Partial<Investment>) => Promise<void>;
-  deleteInvestment: (id: string) => Promise<void>;
-  getTotalInvestment: () => number;
-  getUserInvestmentPercentage: () => number;
-  getUserContributionAmount: () => number;
-  getAllUsersInvestmentData: () => Array<{ name: string; amount: number; percentage: number }>;
-
-  timeSessions: TimeSession[];
-  startTimeSession: (hourlyRate: number, isPaid: boolean) => string;
-  stopTimeSession: (sessionId: string, isPaid: boolean) => Promise<void>;
-  getCurrentTimeSession: () => TimeSession | null;
-  updateTimeSession: (id: string, data: Partial<TimeSession>) => Promise<void>;
-  deleteTimeSession: (id: string) => Promise<void>;
-
   debts: Debt[];
   addDebt: (debt: Omit<Debt, 'id'>) => Promise<void>;
   updateDebt: (id: string, data: Partial<Debt>) => Promise<void>;
@@ -123,31 +38,10 @@ type DataContextType = {
   markDebtAsPaid: (id: string) => Promise<void>;
   markDebtAsUnpaid: (id: string) => Promise<void>;
 
-  products: Product[];
-  addProduct: (
-    p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
-  ) => Promise<void>;
-  updateProduct: (
-    id: string,
-    updates: Partial<Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy'>>
-  ) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
-  searchProducts: (term: string) => Promise<Product[]>;
-  getTotalProductValue: () => number;
+  entries: Entry[];
+  addEntry: (amount: number, description: string, date: string) => Promise<void>;
 
-  sales: Sale[];
-  addSale: (s: Omit<Sale, 'id' | 'seq' | 'soldAt' | 'soldBy' | 'canceled'>) => Promise<void>;
-  undoSale: (id: string) => Promise<void>;
-  getSales: (opts?: {
-    startDate?: string;
-    endDate?: string;
-    productId?: string;
-    userId?: string;
-    includeCanceled?: boolean;
-  }) => Promise<Sale[]>;
-
-  cashMovements: CashMovement[];
-  saveMonthlySummary: (summary: MonthlySummary) => Promise<void>;
+  unplannedExpenses: UnplannedExpense[];
 };
 
 const DataContext = createContext<DataContextType>({} as DataContextType);
@@ -156,236 +50,75 @@ export const useData = () => useContext(DataContext);
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
 
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [timeSessions, setTimeSessions] = useState<TimeSession[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [cashMovements, setCashMovements] = useState<CashMovement[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [unplannedExpenses, setUnplannedExpenses] = useState<UnplannedExpense[]>([]);
 
   useEffect(() => {
-    const unsubInv = onSnapshot(collection(db, 'investments'), snap =>
-      setInvestments(snap.docs.map(d => ({ ...(d.data() as any), id: d.id })))
-    );
-    const unsubSess = onSnapshot(collection(db, 'timeSessions'), snap =>
-      setTimeSessions(snap.docs.map(d => ({ ...(d.data() as any), id: d.id })))
-    );
-    const unsubDebt = onSnapshot(collection(db, 'debts'), snap =>
-      setDebts(snap.docs.map(d => ({ ...(d.data() as any), id: d.id })))
-    );
-    const unsubProd = onSnapshot(collection(db, 'products'), snap =>
-      setProducts(snap.docs.map(d => ({ ...(d.data() as any), id: d.id })))
-    );
-    const unsubSales = onSnapshot(collection(db, 'vendas'), snap => {
-      const updatedSales = snap.docs.map(d => ({ ...(d.data() as Sale), id: d.id }));
-      setSales(updatedSales);
-    }, (error) => {
-      console.error('Error in onSnapshot for vendas:', error);
+    if (!user) return;
+    const unsubDebts = onSnapshot(collection(db, 'debts'), (snap) => {
+      setDebts(
+        snap.docs
+          .map((d) => {
+            const data = d.data() as Omit<Debt, 'id'>;
+            return {
+              id: d.id,
+              ...data,
+              amount: data.amount || 0,
+              dueDate: data.dueDate || '',
+              paid: data.paid || false,
+              userId: data.userId || '',
+              userName: data.userName || '',
+            };
+          })
+          .filter((d): d is Debt => !!d.id && !!d.description && !isNaN(d.amount))
+      );
     });
-    const unsubCashMovements = onSnapshot(collection(db, 'cashMovements'), snap => {
-      const updatedMovements = snap.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<CashMovement, 'id'>)
-      }));
-      updatedMovements.sort((a, b) => {
-        const ta = a.date ? a.date.toMillis() : 0;
-        const tb = b.date ? b.date.toMillis() : 0;
-        return tb - ta;
-      });
-      setCashMovements(updatedMovements);
-    }, (error) => {
-      console.error('Error in onSnapshot for cashMovements:', error);
+    const unsubEntries = onSnapshot(collection(db, 'entries'), (snap) => {
+      setEntries(
+        snap.docs
+          .map((doc) => {
+            const data = doc.data() as Omit<Entry, 'id'>;
+            return {
+              id: doc.id,
+              ...data,
+              amount: data.amount || 0,
+              description: data.description || '',
+              date: data.date || '',
+              userId: data.userId || '',
+            };
+          })
+          .filter((e): e is Entry => !!e.id && !!e.description && !isNaN(e.amount))
+      );
     });
-
+    const unsubUnplanned = onSnapshot(collection(db, 'unplannedExpenses'), (snap) => {
+      setUnplannedExpenses(
+        snap.docs
+          .map((doc) => {
+            const data = doc.data() as Omit<UnplannedExpense, 'id'>;
+            return {
+              id: doc.id,
+              ...data,
+              amount: data.amount || 0,
+              description: data.description || '',
+              date: data.date || '',
+              userId: data.userId || '',
+              userName: data.userName || '',
+            };
+          })
+          .filter((e): e is UnplannedExpense => !!e.id && !!e.description && !isNaN(e.amount))
+      );
+    });
     return () => {
-      unsubInv();
-      unsubSess();
-      unsubDebt();
-      unsubProd();
-      unsubSales();
-      unsubCashMovements();
+      unsubDebts();
+      unsubEntries();
+      unsubUnplanned();
     };
-  }, []);
+  }, [user]);
 
-  const addInvestment = async (description: string, amount: number, isTimeInvestment = false, sessionId?: string) => {
+  const addDebt = async (debt: Omit<Debt, 'id'>) => {
     if (!user) return;
-    try {
-      await addDoc(collection(db, 'investments'), {
-        description,
-        amount,
-        isTimeInvestment,
-        userId: user.id,
-        userName: user.username,
-        date: new Date().toISOString(),
-        ...(sessionId && { sessionId })
-      });
-      console.log('Investimento adicionado com sucesso:', { description, amount, sessionId });
-    } catch (error) {
-      console.error('Erro ao adicionar investimento:', error);
-    }
-  };
-
-  const updateInvestment = (id: string, data: Partial<Investment>) =>
-    updateDoc(doc(db, 'investments', id), data);
-
-  const deleteInvestment = (id: string) =>
-    deleteDoc(doc(db, 'investments', id));
-
-  const getTotalInvestment = () =>
-    investments.reduce((sum, i) => sum + i.amount, 0);
-
-  const getUserContributionAmount = () =>
-    user
-      ? investments.filter(i => i.userId === user.id).reduce((sum, i) => sum + i.amount, 0)
-      : 0;
-
-  const getUserInvestmentPercentage = () => {
-    const total = getTotalInvestment();
-    const yours = getUserContributionAmount();
-    return total > 0 ? (yours / total) * 100 : 0;
-  };
-
-  const getAllUsersInvestmentData = () => {
-    const map: Record<string, { name: string; amount: number }> = {};
-    investments.forEach(i => {
-      if (!map[i.userId]) map[i.userId] = { name: i.userName, amount: 0 };
-      map[i.userId].amount += i.amount;
-    });
-    const total = getTotalInvestment();
-    return Object.values(map).map(u => ({
-      name: u.name,
-      amount: u.amount,
-      percentage: total > 0 ? (u.amount / total) * 100 : 0
-    }));
-  };
-
-  const startTimeSession = (hourlyRate: number, isPaid: boolean): string => {
-    if (!user) return '';
-    const ref = doc(collection(db, 'timeSessions'));
-    addDoc(collection(db, 'timeSessions'), {
-      id: ref.id,
-      userId: user.id,
-      startTime: new Date().toISOString(),
-      endTime: null,
-      pausedTime: 0,
-      hourlyRate,
-      isPaid,
-      isCompleted: false
-    });
-    return ref.id;
-  };
-
-  const stopTimeSession = async (sessionId: string, isPaid: boolean) => {
-    const sess = timeSessions.find(s => s.id === sessionId);
-    if (!sess || !user) {
-      console.error('Sessão ou usuário não encontrado ao parar:', { sessionId, user });
-      return;
-    }
-    try {
-      const endTime = new Date().toISOString();
-      await updateDoc(doc(db, 'timeSessions', sessionId), {
-        endTime,
-        isPaid,
-        isCompleted: true
-      });
-      console.log('Sessão atualizada com sucesso:', { sessionId, endTime, isPaid });
-
-      if (!isPaid) {
-        const hours =
-          (new Date(endTime).getTime() -
-            new Date(sess.startTime).getTime() -
-            sess.pausedTime * 1000) /
-          3600000;
-        const amount = hours * sess.hourlyRate;
-        await addInvestment(
-          `Investimento de Tempo (${hours.toFixed(2)}h)`,
-          amount,
-          true,
-          sessionId
-        );
-        console.log('Investimento de tempo criado:', { hours: hours.toFixed(2), amount: amount.toFixed(2), sessionId });
-      }
-    } catch (error) {
-      console.error('Erro ao parar sessão ou criar investimento:', error);
-      alert('Ocorreu um erro ao finalizar a sessão. Verifique o console para mais detalhes.');
-    }
-  };
-
-  const getCurrentTimeSession = () =>
-    user
-      ? timeSessions.find(s => s.userId === user.id && !s.isCompleted) || null
-      : null;
-
-  const updateTimeSession = async (id: string, data: Partial<TimeSession>) => {
-    if (!user) return;
-    try {
-      const sessionBeforeUpdate = timeSessions.find(s => s.id === id);
-      if (!sessionBeforeUpdate) {
-        console.error('Sessão não encontrada:', { sessionId: id });
-        return;
-      }
-
-      await updateDoc(doc(db, 'timeSessions', id), data);
-      console.log('Sessão atualizada:', { sessionId: id, updatedData: data });
-
-      const isPaidAfterUpdate = data.isPaid !== undefined ? data.isPaid : sessionBeforeUpdate.isPaid;
-      const endTime = data.endTime !== undefined ? data.endTime : sessionBeforeUpdate.endTime;
-      const startTime = data.startTime !== undefined ? data.startTime : sessionBeforeUpdate.startTime;
-      const hourlyRate = data.hourlyRate !== undefined ? data.hourlyRate : sessionBeforeUpdate.hourlyRate;
-      const pausedTime = data.pausedTime !== undefined ? data.pausedTime : sessionBeforeUpdate.pausedTime;
-
-      if (endTime) {
-        const hours =
-          (new Date(endTime).getTime() -
-            new Date(startTime).getTime() -
-            pausedTime * 1000) /
-          3600000;
-        const amount = hours * hourlyRate;
-
-        const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
-
-        if (sessionBeforeUpdate.isPaid && !isPaidAfterUpdate) {
-          await addInvestment(
-            `Investimento de Tempo (${hours.toFixed(2)}h)`,
-            amount,
-            true,
-            id
-          );
-          console.log('Novo investimento criado:', { sessionId: id, amount: amount.toFixed(2) });
-        } else if (!sessionBeforeUpdate.isPaid && isPaidAfterUpdate && investment) {
-          await deleteInvestment(investment.id);
-          console.log('Investimento removido:', { investmentId: investment.id });
-        } else if (!isPaidAfterUpdate && investment) {
-          await updateInvestment(investment.id, {
-            description: `Investimento de Tempo (${hours.toFixed(2)}h)`,
-            amount: amount
-          });
-          console.log('Investimento atualizado:', { sessionId: id, newAmount: amount.toFixed(2) });
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar sessão ou investimento:', error);
-    }
-  };
-
-  const deleteTimeSession = async (id: string) => {
-    if (!user) return;
-    try {
-      const investment = investments.find(i => i.sessionId === id && i.isTimeInvestment);
-      if (investment) {
-        await deleteInvestment(investment.id);
-        console.log('Investimento associado deletado:', { investmentId: investment.id });
-      }
-      await deleteDoc(doc(db, 'timeSessions', id));
-      console.log('Sessão deletada:', { sessionId: id });
-    } catch (error) {
-      console.error('Erro ao deletar sessão ou investimento:', error);
-    }
-  };
-
-  const addDebt = async (d: Omit<Debt, 'id'>) => {
-    if (!user) return;
-    await addDoc(collection(db, 'debts'), d);
+    await addDoc(collection(db, 'debts'), { ...debt, userId: user.id, userName: user.username, createdAt: serverTimestamp() });
   };
 
   const updateDebt = (id: string, data: Partial<Debt>) =>
@@ -394,290 +127,32 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const deleteDebt = (id: string) =>
     deleteDoc(doc(db, 'debts', id));
 
-  const addCashMovement = async (
-    type: 'entrada' | 'saida',
-    amount: number,
-    description: string,
-    source: 'manual' | 'sale' | 'debt_payment'
-  ) => {
+  const addEntry = async (amount: number, description: string, date: string) => {
     if (!user) return;
-    try {
-      await addDoc(collection(db, 'cashMovements'), {
-        type,
-        amount,
-        description,
-        date: serverTimestamp(),
-        userID: user.id,
-        userName: user.username || 'Usuário',
-        source
-      });
-      console.log('Movimento de caixa adicionado:', { type, amount, description, source });
-    } catch (error) {
-      console.error('Erro ao adicionar movimento de caixa:', error);
-      throw error;
-    }
+    await addDoc(collection(db, 'entries'), {
+      amount,
+      description,
+      date,
+      userId: user.id,
+      createdAt: serverTimestamp(),
+    });
   };
 
   const markDebtAsPaid = async (id: string) => {
-    const debt = debts.find(d => d.id === id);
+    const debt = debts.find((d) => d.id === id);
     if (!debt || debt.paid) return;
     await updateDoc(doc(db, 'debts', id), { paid: true });
-    await addCashMovement(
-      'saida',
-      debt.amount,
-      `Pagamento de dívida: ${debt.description}`,
-      'debt_payment'
-    );
   };
 
   const markDebtAsUnpaid = async (id: string) => {
-    const debt = debts.find(d => d.id === id);
+    const debt = debts.find((d) => d.id === id);
     if (!debt || !debt.paid) return;
     await updateDoc(doc(db, 'debts', id), { paid: false });
-    await addCashMovement(
-      'entrada',
-      debt.amount,
-      `Reversão de pagamento de dívida: ${debt.description}`,
-      'debt_payment'
-    );
-  };
-
-  const saveMonthlySummary = async (summary: MonthlySummary) => {
-    try {
-      await addDoc(collection(db, 'monthlySummaries'), summary);
-      console.log('Monthly summary saved:', summary);
-    } catch (error) {
-      console.error('Error saving monthly summary:', error);
-      throw error;
-    }
-  };
-
-  const addProduct = async (
-    p: Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy' | 'updatedAt' | 'updatedBy'>
-  ) => {
-    if (!user) return;
-    await runTransaction(db, async tx => {
-      const counterRef = doc(db, 'counters', 'products');
-      const counterSnap = await tx.get(counterRef);
-      const lastSeq: number = (counterSnap.exists() && (counterSnap.data() as any).lastSeq) || 0;
-      const newSeq = lastSeq + 1;
-      tx.set(counterRef, { lastSeq: newSeq }, { merge: true });
-
-      const now = new Date().toISOString();
-      const salePrice = p.costPrice * (1 + p.profitMargin / 100);
-      const prodRef = doc(collection(db, 'products')) as DocumentReference<Product>;
-
-      tx.set(prodRef, {
-        id: prodRef.id,
-        seq: newSeq,
-        description: p.description,
-        costPrice: p.costPrice,
-        profitMargin: p.profitMargin,
-        salePrice,
-        quantity: (p as any).quantity,
-        createdAt: now,
-        createdBy: user.id
-      });
-    });
-  };
-
-  const updateProduct = async (
-    id: string,
-    updates: Partial<Omit<Product, 'id' | 'seq' | 'salePrice' | 'createdAt' | 'createdBy'>>
-  ) => {
-    if (!user) return;
-    const orig = products.find(x => x.id === id)!;
-    const cost = updates.costPrice ?? orig.costPrice;
-    const margin = updates.profitMargin ?? orig.profitMargin;
-    const salePrice = cost * (1 + margin / 100);
-    const now = new Date().toISOString();
-    await updateDoc(doc(db, 'products', id), {
-      ...updates,
-      salePrice,
-      updatedAt: now,
-      updatedBy: user.id
-    });
-  };
-
-  const deleteProduct = (id: string) =>
-    deleteDoc(doc(db, 'products', id));
-
-  const searchProducts = async (term: string): Promise<Product[]> => {
-    const bySeq = products.find(p => p.seq.toString() === term);
-    if (bySeq) return [bySeq];
-    const q = query(
-      collection(db, 'products'),
-      where('description', '>=', term),
-      where('description', '<=', term + '\uf8ff')
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...(d.data() as any), id: d.id }));
-  };
-
-  const getTotalProductValue = () =>
-    products.reduce((sum, p) => sum + p.salePrice * p.quantity, 0);
-
-  const addSale = async (
-    s: Omit<Sale, 'id' | 'seq' | 'soldAt' | 'soldBy' | 'canceled'>
-  ) => {
-    if (!user) return;
-    let newSeq: number;
-    await runTransaction(db, async tx => {
-      const counterRef = doc(db, 'counters', 'vendas');
-      const counterSnap = await tx.get(counterRef);
-      const lastSeq: number = (counterSnap.exists() && (counterSnap.data() as any).lastSeq) || 0;
-
-      const prodRef = doc(db, 'products', s.productId);
-      const prodSnap = await tx.get(prodRef);
-      const curQty: number = (prodSnap.exists() && (prodSnap.data() as any).quantity) || 0;
-
-      newSeq = lastSeq + 1;
-      tx.set(counterRef, { lastSeq: newSeq }, { merge: true });
-
-      const now = new Date().toISOString();
-      const saleRef = doc(collection(db, 'vendas')) as DocumentReference<Sale>;
-      tx.set(saleRef, {
-        id: saleRef.id,
-        seq: newSeq,
-        productId: s.productId,
-        description: s.description,
-        unitPrice: s.unitPrice,
-        discountPercent: s.discountPercent,
-        finalUnitPrice: s.finalUnitPrice,
-        quantity: s.quantity,
-        totalPrice: s.totalPrice,
-        soldAt: now,
-        soldBy: user.id,
-        canceled: false
-      });
-
-      const newQty = curQty - s.quantity;
-      tx.update(prodRef, { quantity: newQty });
-    });
-
-    await addCashMovement(
-      'entrada',
-      s.totalPrice,
-      `Venda: ${s.description} (Seq: ${newSeq!})`,
-      'sale'
-    );
-  };
-
-  const undoSale = async (id: string) => {
-    if (!user) throw new Error('User not authenticated');
-    try {
-      await runTransaction(db, async tx => {
-        const saleRef = doc(db, 'vendas', id);
-        const saleSnap = await tx.get(saleRef);
-        if (!saleSnap.exists()) {
-          return;
-        }
-
-        const sale = saleSnap.data() as Sale;
-        const prodRef = doc(db, 'products', sale.productId);
-        const prodSnap = await tx.get(prodRef);
-
-        tx.delete(saleRef);
-
-        if (prodSnap.exists()) {
-          const curQty: number = prodSnap.data().quantity || 0;
-          const newQty = curQty + sale.quantity;
-          tx.update(prodRef, { quantity: newQty });
-        } else {
-          const now = new Date().toISOString();
-          tx.set(prodRef, {
-            id: sale.productId,
-            seq: 0,
-            description: sale.description,
-            costPrice: 0,
-            profitMargin: 0,
-            salePrice: sale.finalUnitPrice,
-            quantity: sale.quantity,
-            createdAt: now,
-            createdBy: user.id
-          });
-        }
-      });
-
-      const sale = sales.find(s => s.id === id);
-      if (sale) {
-        await addCashMovement(
-          'saida',
-          sale.totalPrice,
-          `Reversão de venda: ${sale.description} (Seq: ${sale.seq})`,
-          'sale'
-        );
-      }
-    } catch (error) {
-      throw new Error(`Failed to delete sale: ${(error as any).message}`);
-    }
-  };
-
-  const getSales = async (opts?: {
-    startDate?: string;
-    endDate?: string;
-    productId?: string;
-    userId?: string;
-    includeCanceled?: boolean;
-  }) => {
-    const clauses: any[] = [];
-    if (opts?.productId) clauses.push(where('productId', '==', opts.productId));
-    if (opts?.userId) clauses.push(where('soldBy', '==', opts.userId));
-    if (!opts?.includeCanceled) clauses.push(where('canceled', '==', false));
-    if (opts?.startDate) clauses.push(where('soldAt', '>=', opts.startDate));
-    if (opts?.endDate) clauses.push(where('soldAt', '<=', opts.endDate));
-
-    let q: any = collection(db, 'vendas');
-    if (clauses.length) q = query(collection(db, 'vendas'), ...clauses);
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...(d.data() as any), id: d.id }));
   };
 
   return (
-    <DataContext.Provider
-      value={{
-        investments,
-        addInvestment,
-        updateInvestment,
-        deleteInvestment,
-        getTotalInvestment,
-        getUserInvestmentPercentage,
-        getUserContributionAmount,
-        getAllUsersInvestmentData,
-
-        timeSessions,
-        startTimeSession,
-        stopTimeSession,
-        getCurrentTimeSession,
-        updateTimeSession,
-        deleteTimeSession,
-
-        debts,
-        addDebt,
-        updateDebt,
-        deleteDebt,
-        markDebtAsPaid,
-        markDebtAsUnpaid,
-
-        products,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        searchProducts,
-        getTotalProductValue,
-
-        sales,
-        addSale,
-        undoSale,
-        getSales,
-
-        cashMovements,
-        saveMonthlySummary
-      }}
-    >
+    <DataContext.Provider value={{ debts, addDebt, updateDebt, deleteDebt, markDebtAsPaid, markDebtAsUnpaid, entries, addEntry, unplannedExpenses }}>
       {children}
     </DataContext.Provider>
   );
 };
-
-export default DataContext;

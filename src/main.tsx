@@ -5,7 +5,8 @@ import './index.css';
 
 // 🌙 Aplica o tema salvo no localStorage
 const savedTheme = localStorage.getItem('theme');
-if (savedTheme === 'dark') {
+const isDarkTheme = savedTheme === 'dark';
+if (isDarkTheme) {
   document.documentElement.classList.add('dark');
 } else {
   document.documentElement.classList.remove('dark');
